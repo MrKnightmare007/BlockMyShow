@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  /* Glitch Animations */
+  @keyframes glitch {
+    0% { transform: translate(0); }
+    20% { transform: translate(-2px, 2px); }
+    40% { transform: translate(-2px, -2px); }
+    60% { transform: translate(2px, 2px); }
+    80% { transform: translate(2px, -2px); }
+    100% { transform: translate(0); }
+  }
+
+  @keyframes glitch-slice {
+    0% { clip-path: inset(0 100% 0 0); }
+    10% { clip-path: inset(0 5% 0 0); }
+    20% { clip-path: inset(0 80% 0 0); }
+    30% { clip-path: inset(0 10% 0 0); }
+    40% { clip-path: inset(0 50% 0 0); }
+    50% { clip-path: inset(0 30% 0 0); }
+    60% { clip-path: inset(0 70% 0 0); }
+    70% { clip-path: inset(0 15% 0 0); }
+    80% { clip-path: inset(0 90% 0 0); }
+    90% { clip-path: inset(0 5% 0 0); }
+    100% { clip-path: inset(0 100% 0 0); }
+  }
+
+  @keyframes type-gradient {
+    0% { background-position: 300px 0; }
+    100% { background-position: 0 0; }
+  }
+
+  @keyframes focus-pulse {
+    0%, 100% { border-color: #000; }
+    50% { border-color: #4a90e2; }
+  }
+
+  /* A general utility for a brutalist black/white/blue background */
+  .brutalist-bg {
+    @apply bg-white text-black border-black border-[4px] font-mono p-4 mb-4 shadow-[5px_5px_0px_0px_black];
+  }
+
+  /* Container + Input */
+  .brutalist-container {
+    @apply relative w-full font-mono bg-white px-4 py-4 border-[4px] border-black mt-4;
+    box-shadow: 5px 5px 0 #000, 10px 10px 0 #4a90e2;
+  }
+
+  .brutalist-input {
+    @apply w-full p-[15px] text-[18px] font-bold text-black bg-white border-[4px] border-black relative overflow-hidden outline-none transition-all ease-[cubic-bezier(0.25,_0.8,_0.25,_1)] duration-300 rounded-none;
+    box-shadow: 5px 5px 0 #000, 10px 10px 0 #4a90e2;
+  }
+
+  .brutalist-input:focus {
+    animation: focus-pulse 4s cubic-bezier(0.25, 0.8, 0.25, 1) infinite,
+               glitch 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) infinite !important;
+  }
+
+  .brutalist-input:focus::after {
+    content: "";
+    @apply absolute top-[-2px] left-[-2px] right-[-2px] bottom-[-2px] bg-white z-[-1];
+  }
+
+  .brutalist-input:focus::before {
+    content: "";
+    @apply absolute top-0 left-0 w-full h-full bg-black z-[-2];
+    clip-path: inset(0 100% 0 0);
+    animation: glitch-slice 4s steps(2, end) infinite;
+  }
+
+  .brutalist-label {
+    @apply absolute left-[-3px] top-[-35px] text-[14px] font-bold text-white bg-black px-[10px] py-[5px] transform rotate-[-1deg] transition-all z-[1];
+  }
+
+  .brutalist-input:focus + .brutalist-label {
+    @apply scale-105;
+    transform: rotate(0deg) scale(1.05);
+    background-color: #4a90e2;
+  }
+
+  .smooth-type {
+    @apply relative overflow-hidden;
+  }
+
+  .smooth-type:focus::before {
+    @apply opacity-100;
+    animation: type-gradient 2s linear infinite;
+    background: linear-gradient(90deg, #fff 0%, rgba(255, 255, 255, 0) 100%);
+  }
+
+  .smooth-type::before {
+    content: "";
+    @apply absolute top-0 right-0 bottom-0 left-0 opacity-0 transition-opacity ease-in-out duration-300;
+    background: linear-gradient(90deg, #fff 0%, rgba(255, 255, 255, 0) 100%);
+    z-index: 1;
+  }
+
+  .brutalist-input::placeholder {
+    color: #888;
+    transition: color 0.3s ease;
+  }
+
+  .brutalist-input:focus::placeholder {
+    color: transparent;
+  }
+}
