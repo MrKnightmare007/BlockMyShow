@@ -11,7 +11,7 @@ function TicketVerification() {
     // In a real app, this would open a QR code scanner
     toast.info('QR scanning functionality would be implemented here');
     // For demo purposes, you could set a sample ticket ID
-    setTicketId('123456');
+    setTicketId('956763');
   };
 
   const verifyTicket = async () => {
@@ -24,28 +24,96 @@ function TicketVerification() {
     setVerificationResult(null);
 
     try {
-      // In a real app, this would verify against the blockchain
-      // For demo purposes, we'll simulate verification
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
+      // Simulate network delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Get tickets from localStorage for demo
-      const tickets = JSON.parse(localStorage.getItem('tickets') || '[]');
-      const ticket = tickets.find(t => t.id === ticketId);
+      // Get tickets from ticketRequests in localStorage
+      const tickets = JSON.parse(localStorage.getItem('ticketRequests') || '[]');
       
-      if (ticket && ticket.aadharId === aadharId) {
-        setVerificationResult({
-          valid: true,
-          message: 'Ticket verified successfully!',
-          ticketDetails: {
-            eventName: ticket.eventName,
-            owner: ticket.owner
-          }
-        });
+      console.log("All tickets in localStorage:", tickets);
+      console.log("Looking for ticket with tokenId:", ticketId);
+      
+      // Manual search to debug the issue
+      let foundTicket = null;
+      for (const ticket of tickets) {
+        console.log(`Checking ticket ${ticket.id}:`, ticket);
+        // Convert both to strings and trim whitespace
+        const ticketTokenId = ticket.tokenId ? String(ticket.tokenId).trim() : '';
+        const searchTokenId = String(ticketId).trim();
+        
+        console.log(`Comparing: "${ticketTokenId}" === "${searchTokenId}"`);
+        
+        if (ticketTokenId === searchTokenId) {
+          console.log("MATCH FOUND:", ticket);
+          foundTicket = ticket;
+          break;
+        }
+      }
+      
+      if (foundTicket) {
+        console.log("Found ticket manually:", foundTicket);
+        
+        // Check if Aadhar ID matches
+        if (foundTicket.aadharId === aadharId) {
+          setVerificationResult({
+            valid: true,
+            message: 'Ticket verified successfully!',
+            ticketDetails: {
+              eventName: foundTicket.eventName,
+              date: foundTicket.date || 'N/A',
+              seatId: foundTicket.seatId,
+              owner: foundTicket.userAddress.substring(0, 6) + '...' + foundTicket.userAddress.substring(foundTicket.userAddress.length - 4)
+            }
+          });
+          toast.success('Ticket verified successfully!');
+        } else {
+          setVerificationResult({
+            valid: false,
+            message: 'Aadhar ID does not match for this ticket.'
+          });
+          toast.error('Aadhar ID verification failed');
+        }
       } else {
+        // Try finding by ID as fallback
+        console.log("No ticket found by tokenId, trying by id");
+        
+        // Manual search by ID
+        for (const ticket of tickets) {
+          const ticketId1 = ticket.id ? String(ticket.id).trim() : '';
+          const searchId = String(ticketId).trim();
+          
+          if (ticketId1 === searchId) {
+            console.log("Found ticket by id:", ticket);
+            
+            if (ticket.aadharId === aadharId) {
+              setVerificationResult({
+                valid: true,
+                message: 'Ticket verified successfully!',
+                ticketDetails: {
+                  eventName: ticket.eventName,
+                  date: ticket.date || 'N/A',
+                  seatId: ticket.seatId,
+                  owner: ticket.userAddress.substring(0, 6) + '...' + ticket.userAddress.substring(ticket.userAddress.length - 4)
+                }
+              });
+              toast.success('Ticket verified successfully!');
+            } else {
+              setVerificationResult({
+                valid: false,
+                message: 'Aadhar ID does not match for this ticket.'
+              });
+              toast.error('Aadhar ID verification failed');
+            }
+            setVerifying(false);
+            return;
+          }
+        }
+        
         setVerificationResult({
           valid: false,
-          message: 'Invalid ticket or Aadhar ID does not match.'
+          message: 'Invalid ticket ID. No ticket found with this ID.'
         });
+        toast.error('Ticket not found');
       }
     } catch (error) {
       console.error('Error verifying ticket:', error);
@@ -53,6 +121,7 @@ function TicketVerification() {
         valid: false,
         message: 'Error verifying ticket: ' + error.message
       });
+      toast.error('Verification error');
     } finally {
       setVerifying(false);
     }
@@ -112,6 +181,8 @@ function TicketVerification() {
             {verificationResult.valid && verificationResult.ticketDetails && (
               <div className="mt-2">
                 <p><span className="font-medium">Event:</span> {verificationResult.ticketDetails.eventName}</p>
+                <p><span className="font-medium">Date:</span> {verificationResult.ticketDetails.date}</p>
+                <p><span className="font-medium">Seat:</span> {verificationResult.ticketDetails.seatId}</p>
                 <p><span className="font-medium">Owner:</span> {verificationResult.ticketDetails.owner}</p>
               </div>
             )}
