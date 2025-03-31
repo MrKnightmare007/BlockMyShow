@@ -1,32 +1,22 @@
-# TickTicket - Blockchain-based Ticketing System
+# TickTicket - Blockchain-Based Ticket Management System
 
-A secure NFT-based ticketing system with identity verification using Aadhar ID and picture.
+TickTicket is a decentralized application (dApp) for secure ticket management using blockchain technology. It allows users to purchase tickets for events, verify ticket authenticity, and prevents ticket fraud through Aadhar ID verification.
 
 ## Features
+- **Blockchain-Based Tickets**: Secure, tamper-proof tickets stored on the blockchain.
+- **Aadhar Verification**: Link tickets to Aadhar IDs to prevent unauthorized transfers.
+- **QR Code Verification**: Easy ticket verification at event entry.
+- **Admin Dashboard**: Manage events, approve ticket requests, and verify tickets.
+- **User Dashboard**: View purchased tickets and their status.
 
-- Non-transferable NFT tickets (can only be sold back to the organizer)
-- Identity verification using Aadhar ID and picture
-- Admin panel for ticket minting
-- User dashboard to view owned tickets
-
-## Technology Stack
-
-- Frontend: React, Vite, Tailwind CSS
-- Blockchain: Ethereum, Solidity, Hardhat
-- Web3 Integration: ethers.js
-
-## Setup Instructions
-
-### Prerequisites
-
-- Node.js and npm
+## Prerequisites
+- Node.js (v14.0.0 or higher)
+- npm (v6.0.0 or higher)
 - MetaMask browser extension
-- Ganache (for local development) or access to Sepolia testnet
+- Hardhat (for local blockchain development)
 
-### Installation
-
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd tickticket
-```
+## Installation
+1. **Clone the repository**:
+   ```sh
+   git clone https://github.com/your-repo/tickticket.git
+   cd tickticket
