@@ -1,0 +1,94 @@
+/* BookMyShow-inspired styles and animations */
+
+/* Card hover effects */
+.event-card {
+  transition: all 0.3s ease;
+  transform: translateY(0);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.event-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Gradient backgrounds */
+.hero-gradient {
+  background: linear-gradient(135deg, #ff5f6d 0%, #ffc371 100%);
+}
+
+.primary-gradient {
+  background: linear-gradient(135deg, #5433FF 0%, #20BDFF 50%, #A5FECB 100%);
+}
+
+.secondary-gradient {
+  background: linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%);
+}
+
+.dark-gradient {
+  background: linear-gradient(135deg, #141e30 0%, #243b55 100%);
+}
+
+/* Pulse animation for buttons */
+.pulse-animation {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(66, 153, 225, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(66, 153, 225, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(66, 153, 225, 0);
+  }
+}
+
+/* Shimmer effect for loading states */
+.shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Ticket tear effect */
+.ticket-tear {
+  position: relative;
+}
+
+.ticket-tear::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 12px;
+  background-image: linear-gradient(to bottom, transparent 0%, transparent 50%, #fff 50%, #fff 100%);
+  background-size: 12px 12px;
+}
+
+/* BookMyShow-like button styles */
+.bms-button {
+  background: linear-gradient(135deg, #e91e63 0%, #f44336 100%);
+  color: white;
+  font-weight: bold;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+.bms-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 7px 14px rgba(233, 30, 99, 0.3);
+}

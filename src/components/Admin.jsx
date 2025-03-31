@@ -204,99 +204,97 @@ function Admin() {
     );
   }
 
+  // Inside the return statement, update the main container div
   return (
-    <div className="bg-white shadow-md rounded-lg p-6 max-w-6xl mx-auto">
-      <h2 className="text-2xl font-bold mb-6">Admin Dashboard</h2>
-      
-      <div className="mb-6">
-        <h3 className="text-lg font-semibold mb-2">Contract Information</h3>
-        <p className="text-sm mb-1">
-          <span className="font-medium">Sell-Back Address:</span>{' '}
-          {sellBackAddress ? sellBackAddress : 'Loading...'}
-        </p>
-      </div>
+    <div className="bg-white dark:bg-gray-900 rounded-lg shadow-md p-6 transition-colors duration-300">
+      <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">Admin Dashboard</h2>
       
       {/* Tabs */}
-      <div className="mb-6 border-b">
-        <div className="flex">
-          <button
-            onClick={() => setActiveTab('tickets')}
-            className={`py-2 px-4 ${activeTab === 'tickets' ? 'border-b-2 border-blue-500 font-medium' : 'text-gray-500'}`}
-          >
-            Ticket Requests
-          </button>
-          <button
-            onClick={() => setActiveTab('events')}
-            className={`py-2 px-4 ${activeTab === 'events' ? 'border-b-2 border-blue-500 font-medium' : 'text-gray-500'}`}
-          >
-            Manage Events
-          </button>
-          <button
-            onClick={() => setActiveTab('verify')}
-            className={`py-2 px-4 ${activeTab === 'verify' ? 'border-b-2 border-blue-500 font-medium' : 'text-gray-500'}`}
-          >
-            Verify Tickets
-          </button>
-          <button
-            onClick={() => setActiveTab('mint')}
-            className={`py-2 px-4 ${activeTab === 'mint' ? 'border-b-2 border-blue-500 font-medium' : 'text-gray-500'}`}
-          >
-            Manual Minting
-          </button>
-        </div>
+      <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6">
+        <button
+          onClick={() => setActiveTab('requests')}
+          className={`py-2 px-4 font-medium text-sm focus:outline-none transition-colors ${
+            activeTab === 'requests'
+              ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+          }`}
+        >
+          Ticket Requests
+        </button>
+        <button
+          onClick={() => setActiveTab('events')}
+          className={`py-2 px-4 font-medium text-sm focus:outline-none transition-colors ${
+            activeTab === 'events'
+              ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+          }`}
+        >
+          Manage Events
+        </button>
+        <button
+          onClick={() => setActiveTab('verify')}
+          className={`py-2 px-4 font-medium text-sm focus:outline-none transition-colors ${
+            activeTab === 'verify'
+              ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+          }`}
+        >
+          Verify Tickets
+        </button>
+        <button
+          onClick={() => setActiveTab('mint')}
+          className={`py-2 px-4 font-medium text-sm focus:outline-none transition-colors ${
+            activeTab === 'mint'
+              ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+          }`}
+        >
+          Manual Minting
+        </button>
       </div>
       
-      {/* Pending Ticket Requests Tab */}
-      {activeTab === 'tickets' && (
+      {/* Ticket Requests Tab */}
+      {activeTab === 'requests' && (
         <div className="mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold">Pending Ticket Requests</h3>
-            <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded">
-              {ticketRequests.length} Pending
-            </span>
-          </div>
+          <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Pending Ticket Requests</h3>
           
-          {ticketRequests.length === 0 ? (
-            <p className="text-gray-500">No pending ticket requests</p>
+          {loading ? (
+            <p className="text-gray-500 dark:text-gray-400">Loading requests...</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full bg-white border">
+              <table className="min-w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
                 <thead>
-                  <tr>
-                    <th className="py-2 px-4 border-b">Event</th>
-                    <th className="py-2 px-4 border-b">User Address</th>
-                    <th className="py-2 px-4 border-b">Aadhar ID</th>
-                    <th className="py-2 px-4 border-b">Seat</th>
-                    <th className="py-2 px-4 border-b">Timestamp</th>
-                    <th className="py-2 px-4 border-b">Actions</th>
+                  <tr className="bg-gray-50 dark:bg-gray-700 text-left">
+                    <th className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 font-medium text-gray-600 dark:text-gray-300">User</th>
+                    <th className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 font-medium text-gray-600 dark:text-gray-300">Event</th>
+                    <th className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 font-medium text-gray-600 dark:text-gray-300">Aadhar ID</th>
+                    <th className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 font-medium text-gray-600 dark:text-gray-300">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {ticketRequests.map((request) => (
-                    <tr key={request.id}>
-                      <td className="py-2 px-4 border-b">{request.eventName}</td>
-                      <td className="py-2 px-4 border-b">
+                    <tr key={request.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-300">
                         {request.userAddress.substring(0, 6)}...{request.userAddress.substring(request.userAddress.length - 4)}
                       </td>
-                      <td className="py-2 px-4 border-b">{request.aadharId}</td>
-                      <td className="py-2 px-4 border-b">
-                        {request.seatId ? `Row ${Math.floor(request.seatId / 10) + 1}, Col ${(request.seatId % 10) + 1}` : 'N/A'}
+                      <td className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-300">
+                        {request.eventName}
                       </td>
-                      <td className="py-2 px-4 border-b">
-                        {new Date(request.timestamp).toLocaleString()}
+                      <td className="py-2 px-4 border-b border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-300">
+                        {request.aadharId}
                       </td>
-                      <td className="py-2 px-4 border-b">
+                      <td className="py-2 px-4 border-b border-gray-200 dark:border-gray-600">
                         <button
                           onClick={() => approveTicketRequest(request)}
                           disabled={loading}
-                          className="bg-green-500 text-white py-1 px-3 rounded-md text-sm mr-2 hover:bg-green-600"
+                          className="bg-green-500 text-white py-1 px-3 rounded-md text-sm mr-2 hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
                         >
                           Approve
                         </button>
                         <button
                           onClick={() => rejectTicketRequest(request.id)}
                           disabled={loading}
-                          className="bg-red-500 text-white py-1 px-3 rounded-md text-sm hover:bg-red-600"
+                          className="bg-red-500 text-white py-1 px-3 rounded-md text-sm hover:bg-red-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
                         >
                           Reject
                         </button>
@@ -314,21 +312,21 @@ function Admin() {
       {activeTab === 'events' && (
         <div className="mb-8">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold">Manage Events</h3>
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Manage Events</h3>
             <Link 
               to="/admin/add-event" 
-              className="bg-blue-600 text-white py-1 px-4 rounded-md text-sm hover:bg-blue-700"
+              className="bg-blue-600 text-white py-1 px-4 rounded-md text-sm hover:bg-blue-700 transition-colors"
             >
               Add New Event
             </Link>
           </div>
           
           {events.length === 0 ? (
-            <p className="text-gray-500">No events found</p>
+            <p className="text-gray-500 dark:text-gray-400">No events found</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {events.map((event) => (
-                <div key={event.id} className="border rounded-lg overflow-hidden">
+                <div key={event.id} className="event-card border dark:border-gray-700 rounded-lg overflow-hidden">
                   <img 
                     src={event.image} 
                     alt={event.name} 
@@ -339,26 +337,26 @@ function Admin() {
                     }}
                   />
                   <div className="p-4">
-                    <h4 className="font-bold text-lg mb-1">{event.name}</h4>
-                    <p className="text-sm text-gray-600 mb-2">
+                    <h4 className="font-bold text-lg mb-1 text-gray-800 dark:text-white">{event.name}</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                       {event.date} • {event.location}
                     </p>
-                    <p className="text-sm mb-2">
+                    <p className="text-sm mb-2 text-gray-700 dark:text-gray-300">
                       <span className="font-medium">Price:</span> {event.price} ETH
                     </p>
-                    <p className="text-sm mb-2">
+                    <p className="text-sm mb-2 text-gray-700 dark:text-gray-300">
                       <span className="font-medium">Seats:</span> {event.bookedSeats?.length || 0}/{event.totalSeats || 100} booked
                     </p>
                     <div className="flex justify-between mt-4">
                       <Link 
                         to={`/admin/edit-event/${event.id}`}
-                        className="bg-blue-500 text-white py-1 px-3 rounded-md text-sm hover:bg-blue-600"
+                        className="bg-blue-500 text-white py-1 px-3 rounded-md text-sm hover:bg-blue-600 transition-colors"
                       >
                         Edit
                       </Link>
                       <button
                         onClick={() => deleteEvent(event.id)}
-                        className="bg-red-500 text-white py-1 px-3 rounded-md text-sm hover:bg-red-600"
+                        className="bg-red-500 text-white py-1 px-3 rounded-md text-sm hover:bg-red-600 transition-colors"
                       >
                         Delete
                       </button>
@@ -381,49 +379,49 @@ function Admin() {
       {/* Manual Minting Tab */}
       {activeTab === 'mint' && (
         <div className="mb-8">
-          <h3 className="text-lg font-semibold mb-4">Mint New Ticket Manually</h3>
-          <form onSubmit={mintTicket} className="max-w-md">
+          <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Mint New Ticket Manually</h3>
+          <form onSubmit={mintTicket} className="max-w-md mint-form">
             <div className="mb-4">
-              <label className="block text-gray-700 mb-2">Recipient Address</label>
+              <label className="block text-gray-700 dark:text-gray-300 mb-2">Recipient Address</label>
               <input
                 type="text"
                 value={recipient}
                 onChange={(e) => setRecipient(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md"
+                className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 placeholder="0x..."
               />
             </div>
             
             <div className="mb-4">
-              <label className="block text-gray-700 mb-2">Token ID</label>
+              <label className="block text-gray-700 dark:text-gray-300 mb-2">Token ID</label>
               <input
                 type="number"
                 value={tokenId}
                 onChange={(e) => setTokenId(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md"
+                className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 placeholder="Enter token ID"
                 min="0"
               />
             </div>
             
             <div className="mb-4">
-              <label className="block text-gray-700 mb-2">Aadhar ID</label>
+              <label className="block text-gray-700 dark:text-gray-300 mb-2">Aadhar ID</label>
               <input
                 type="text"
                 value={aadharId}
                 onChange={(e) => setAadharId(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md"
+                className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 placeholder="Enter Aadhar ID"
               />
             </div>
             
             <div className="mb-4">
-              <label className="block text-gray-700 mb-2">Picture Hash (IPFS)</label>
+              <label className="block text-gray-700 dark:text-gray-300 mb-2">Picture Hash (IPFS)</label>
               <input
                 type="text"
                 value={pictureHash}
                 onChange={(e) => setPictureHash(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md"
+                className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 placeholder="ipfs://..."
               />
             </div>
@@ -431,7 +429,7 @@ function Admin() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? 'Processing...' : 'Mint Ticket'}
             </button>

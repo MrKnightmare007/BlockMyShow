@@ -143,7 +143,7 @@ function EventDetails() {
   
   return (
     <div className="max-w-6xl mx-auto">
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
         {/* Event Header */}
         <div className="relative">
           <img 
@@ -166,15 +166,15 @@ function EventDetails() {
         {/* Event Details */}
         <div className="p-6">
           <div className="mb-8">
-            <h2 className="text-xl font-bold mb-2">About this event</h2>
-            <p className="text-gray-700">{event.description}</p>
+            <h2 className="text-xl font-bold mb-2 dark:text-white">About this event</h2>
+            <p className="text-gray-700 dark:text-gray-300">{event.description}</p>
           </div>
           
           <div className="mb-8">
-            <h2 className="text-xl font-bold mb-4">Select your seat</h2>
+            <h2 className="text-xl font-bold mb-4 dark:text-white">Select your seat</h2>
             
             <div className="mb-6">
-              <div className="w-full bg-gray-300 h-6 rounded-md flex items-center justify-center mb-8">
+              <div className="w-full bg-gray-300 dark:bg-gray-600 h-6 rounded-md flex items-center justify-center mb-8 text-gray-800 dark:text-white">
                 SCREEN
               </div>
               
@@ -187,44 +187,44 @@ function EventDetails() {
               <div className="flex justify-center mt-6 space-x-6">
                 <div className="flex items-center">
                   <div className="w-4 h-4 bg-gray-200 rounded-sm mr-2"></div>
-                  <span className="text-sm">Available</span>
+                  <span className="text-sm dark:text-gray-300">Available</span>
                 </div>
                 <div className="flex items-center">
                   <div className="w-4 h-4 bg-green-500 rounded-sm mr-2"></div>
-                  <span className="text-sm">Selected</span>
+                  <span className="text-sm dark:text-gray-300">Selected</span>
                 </div>
                 <div className="flex items-center">
                   <div className="w-4 h-4 bg-red-500 rounded-sm mr-2"></div>
-                  <span className="text-sm">Booked</span>
+                  <span className="text-sm dark:text-gray-300">Booked</span>
                 </div>
               </div>
             </div>
             
             {selectedSeat !== null && (
-              <div className="mt-6 p-4 border rounded-md">
-                <h3 className="font-bold mb-2">Booking Details</h3>
-                <p className="mb-1">
+              <div className="mt-6 p-4 border rounded-md bg-white dark:bg-gray-800 dark:border-gray-700">
+                <h3 className="font-bold mb-2 dark:text-white">Booking Details</h3>
+                <p className="mb-1 dark:text-gray-300">
                   <span className="font-medium">Event:</span> {event.name}
                 </p>
-                <p className="mb-1">
+                <p className="mb-1 dark:text-gray-300">
                   <span className="font-medium">Date:</span> {event.date}
                 </p>
-                <p className="mb-1">
+                <p className="mb-1 dark:text-gray-300">
                   <span className="font-medium">Seat:</span> Row {Math.floor(selectedSeat / event.columns) + 1}, 
                   Seat {(selectedSeat % event.columns) + 1}
                 </p>
-                <p className="mb-4">
+                <p className="mb-4 dark:text-gray-300">
                   <span className="font-medium">Price:</span> {event.price} ETH
                 </p>
                 
                 <form onSubmit={handleSubmit}>
                   <div className="mb-4">
-                    <label className="block text-gray-700 mb-2">Aadhar ID</label>
+                    <label className="block text-gray-700 dark:text-gray-300 mb-2">Aadhar ID</label>
                     <input
                       type="text"
                       value={aadharId}
                       onChange={(e) => setAadharId(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-md"
+                      className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300"
                       placeholder="Enter your 12-digit Aadhar ID"
                       maxLength="12"
                     />

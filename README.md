@@ -1,6 +1,6 @@
-# TickTicket - Blockchain-Based Ticket Management System
+# BlockMyShow - Blockchain-Based Ticket Management System
 
-TickTicket is a decentralized application (dApp) for secure ticket management using blockchain technology. It allows users to purchase tickets for events, verify ticket authenticity, and prevents ticket fraud through Aadhar ID verification.
+BlockMyShow is a decentralized application (dApp) for secure ticket management using blockchain technology. It allows users to purchase tickets for events, verify ticket authenticity, and prevents ticket fraud through Aadhar ID verification.
 
 ## Features
 - **Blockchain-Based Tickets**: Secure, tamper-proof tickets stored on the blockchain.

@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "ethers": "^5.7.2",
+    "framer-motion": "^12.6.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.4.1",
@@ -26,7 +27,7 @@
     "@types/react": "^18.2.15",
     "@types/react-dom": "^18.2.7",
     "@vitejs/plugin-react": "^4.0.3",
-    "autoprefixer": "^10.4.14",
+    "autoprefixer": "^10.4.21",
     "chai": "^4.3.7",
     "eslint": "^8.45.0",
     "eslint-plugin-react": "^7.32.2",
@@ -34,8 +35,8 @@
     "eslint-plugin-react-refresh": "^0.4.3",
     "ethereum-waffle": "^4.0.10",
     "hardhat": "^2.17.0",
-    "postcss": "^8.4.27",
-    "tailwindcss": "^3.3.3",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
     "vite": "^4.4.5"
   }
 }

@@ -82,56 +82,56 @@ function MyTickets() {
 
   if (!account) {
     return (
-      <div className="bg-white shadow-md rounded-lg p-6 max-w-md mx-auto">
-        <p className="text-center">Please connect your wallet to view your tickets</p>
+      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 max-w-md mx-auto">
+        <p className="text-center text-gray-700 dark:text-gray-300">Please connect your wallet to view your tickets</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white shadow-md rounded-lg p-6 max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-6">My Tickets</h2>
+    <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 max-w-4xl mx-auto">
+      <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">My Tickets</h2>
       
       {isAdmin && (
-        <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-          <p className="text-blue-800">
+        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900 rounded-lg">
+          <p className="text-blue-800 dark:text-blue-200">
             You are logged in as the admin. You can mint tickets for users from the Admin panel.
           </p>
         </div>
       )}
       
       {/* Tabs */}
-      <div className="mb-6 border-b">
+      <div className="mb-6 border-b dark:border-gray-700">
         <div className="flex">
           <button
             onClick={() => setActiveTab('confirmed')}
-            className={`py-2 px-4 ${activeTab === 'confirmed' ? 'border-b-2 border-blue-500 font-medium' : 'text-gray-500'}`}
+            className={`py-2 px-4 ${activeTab === 'confirmed' ? 'border-b-2 border-blue-500 font-medium dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}
           >
             Confirmed Tickets
             {tickets.length > 0 && (
-              <span className="ml-2 bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded">
+              <span className="ml-2 bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-200 text-xs font-medium px-2.5 py-0.5 rounded">
                 {tickets.length}
               </span>
             )}
           </button>
           <button
             onClick={() => setActiveTab('pending')}
-            className={`py-2 px-4 ${activeTab === 'pending' ? 'border-b-2 border-blue-500 font-medium' : 'text-gray-500'}`}
+            className={`py-2 px-4 ${activeTab === 'pending' ? 'border-b-2 border-blue-500 font-medium dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}
           >
             Pending Requests
             {pendingRequests.length > 0 && (
-              <span className="ml-2 bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded">
+              <span className="ml-2 bg-yellow-100 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200 text-xs font-medium px-2.5 py-0.5 rounded">
                 {pendingRequests.length}
               </span>
             )}
           </button>
           <button
             onClick={() => setActiveTab('rejected')}
-            className={`py-2 px-4 ${activeTab === 'rejected' ? 'border-b-2 border-blue-500 font-medium' : 'text-gray-500'}`}
+            className={`py-2 px-4 ${activeTab === 'rejected' ? 'border-b-2 border-blue-500 font-medium dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}
           >
             Rejected Requests
             {rejectedRequests.length > 0 && (
-              <span className="ml-2 bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded">
+              <span className="ml-2 bg-red-100 dark:bg-red-800 text-red-800 dark:text-red-200 text-xs font-medium px-2.5 py-0.5 rounded">
                 {rejectedRequests.length}
               </span>
             )}
@@ -143,15 +143,15 @@ function MyTickets() {
       {activeTab === 'confirmed' && (
         <div>
           {loading ? (
-            <div className="text-center py-4">Loading your tickets...</div>
+            <div className="text-center py-4 text-gray-700 dark:text-gray-300">Loading your tickets...</div>
           ) : tickets.length === 0 ? (
-            <p className="text-gray-500">You don't have any confirmed tickets yet</p>
+            <p className="text-gray-500 dark:text-gray-400">You don't have any confirmed tickets yet</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {tickets.map((ticket) => (
-                <div key={ticket.tokenId} className="border rounded-lg overflow-hidden shadow-md relative">
+                <div key={ticket.tokenId} className="border dark:border-gray-700 rounded-lg overflow-hidden shadow-md relative bg-white dark:bg-gray-800">
                   {/* Event Image Banner */}
-                  <div className="h-32 bg-gray-200 relative">
+                  <div className="h-32 bg-gray-200 dark:bg-gray-700 relative">
                     <img 
                       src={ticket.eventImage || 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80'} 
                       alt={ticket.eventName}
@@ -177,24 +177,24 @@ function MyTickets() {
                   {/* Ticket Details */}
                   <div className="p-4">
                     <div className="flex justify-between items-center mb-3">
-                      <p className="text-sm font-medium text-gray-600">{ticket.date}</p>
-                      <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">Active</span>
+                      <p className="text-sm font-medium text-gray-600 dark:text-gray-300">{ticket.date}</p>
+                      <span className="bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-200 text-xs px-2 py-1 rounded-full font-medium">Active</span>
                     </div>
                     
                     <div className="flex justify-between mb-3">
                       <div>
-                        <p className="text-xs text-gray-500">Ticket ID</p>
-                        <p className="font-medium">#{ticket.tokenId}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Ticket ID</p>
+                        <p className="font-medium text-gray-800 dark:text-gray-200">#{ticket.tokenId}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500">Seat</p>
-                        <p className="font-medium">{ticket.seatInfo}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Seat</p>
+                        <p className="font-medium text-gray-800 dark:text-gray-200">{ticket.seatInfo}</p>
                       </div>
                     </div>
                     
                     {/* Add mini QR code preview */}
                     <div className="flex justify-center my-2">
-                      <div className="bg-white p-1 border rounded-md inline-block">
+                      <div className="bg-white p-1 border dark:border-gray-600 rounded-md inline-block">
                         <img 
                           src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=TIX${ticket.tokenId}AID${ticket.aadharId.substring(0, 4)}`} 
                           alt="Ticket QR Code" 
@@ -203,7 +203,7 @@ function MyTickets() {
                       </div>
                     </div>
                     
-                    <div className="mt-3 pt-3 border-t">
+                    <div className="mt-3 pt-3 border-t dark:border-gray-700">
                       <Link 
                         to={`/ticket/${ticket.tokenId}`} 
                         className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 block text-center"
@@ -223,30 +223,30 @@ function MyTickets() {
       {activeTab === 'pending' && (
         <div>
           {pendingRequests.length === 0 ? (
-            <p className="text-gray-500">No pending ticket requests</p>
+            <p className="text-gray-500 dark:text-gray-400">No pending ticket requests</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {pendingRequests.map((request) => (
-                <div key={request.id} className="border rounded-lg p-4 bg-yellow-50">
+                <div key={request.id} className="border dark:border-gray-700 rounded-lg p-4 bg-yellow-50 dark:bg-yellow-900/30">
                   <div className="flex justify-between items-start mb-2">
-                    <h4 className="font-bold">{request.eventName}</h4>
-                    <span className="bg-yellow-200 text-yellow-800 text-xs px-2 py-1 rounded">Pending</span>
+                    <h4 className="font-bold text-gray-800 dark:text-gray-200">{request.eventName}</h4>
+                    <span className="bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200 text-xs px-2 py-1 rounded">Pending</span>
                   </div>
-                  <p className="text-sm mb-1">
+                  <p className="text-sm mb-1 text-gray-700 dark:text-gray-300">
                     <span className="font-medium">Requested:</span>{' '}
                     {new Date(request.timestamp).toLocaleString()}
                   </p>
-                  <p className="text-sm mb-1">
+                  <p className="text-sm mb-1 text-gray-700 dark:text-gray-300">
                     <span className="font-medium">Aadhar ID:</span>{' '}
                     {request.aadharId}
                   </p>
                   {request.seatId !== undefined && (
-                    <p className="text-sm mb-1">
+                    <p className="text-sm mb-1 text-gray-700 dark:text-gray-300">
                       <span className="font-medium">Seat:</span>{' '}
                       Row {Math.floor(request.seatId / 10) + 1}, Seat {(request.seatId % 10) + 1}
                     </p>
                   )}
-                  <p className="text-sm text-gray-500 mt-2">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                     Your ticket request is being processed by the event organizer.
                   </p>
                 </div>
@@ -260,30 +260,30 @@ function MyTickets() {
       {activeTab === 'rejected' && (
         <div>
           {rejectedRequests.length === 0 ? (
-            <p className="text-gray-500">No rejected ticket requests</p>
+            <p className="text-gray-500 dark:text-gray-400">No rejected ticket requests</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {rejectedRequests.map((request) => (
-                <div key={request.id} className="border rounded-lg p-4 bg-red-50">
+                <div key={request.id} className="border dark:border-gray-700 rounded-lg p-4 bg-red-50 dark:bg-red-900/30">
                   <div className="flex justify-between items-start mb-2">
-                    <h4 className="font-bold">{request.eventName}</h4>
-                    <span className="bg-red-200 text-red-800 text-xs px-2 py-1 rounded">Rejected</span>
+                    <h4 className="font-bold text-gray-800 dark:text-gray-200">{request.eventName}</h4>
+                    <span className="bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200 text-xs px-2 py-1 rounded">Rejected</span>
                   </div>
-                  <p className="text-sm mb-1">
+                  <p className="text-sm mb-1 text-gray-700 dark:text-gray-300">
                     <span className="font-medium">Requested:</span>{' '}
                     {new Date(request.timestamp).toLocaleString()}
                   </p>
-                  <p className="text-sm mb-1">
+                  <p className="text-sm mb-1 text-gray-700 dark:text-gray-300">
                     <span className="font-medium">Aadhar ID:</span>{' '}
                     {request.aadharId}
                   </p>
                   {request.seatId !== undefined && (
-                    <p className="text-sm mb-1">
+                    <p className="text-sm mb-1 text-gray-700 dark:text-gray-300">
                       <span className="font-medium">Seat:</span>{' '}
                       Row {Math.floor(request.seatId / 10) + 1}, Seat {(request.seatId % 10) + 1}
                     </p>
                   )}
-                  <p className="text-sm text-red-700 mt-2">
+                  <p className="text-sm text-red-700 dark:text-red-300 mt-2">
                     Your ticket request was rejected by the event organizer.
                   </p>
                 </div>
