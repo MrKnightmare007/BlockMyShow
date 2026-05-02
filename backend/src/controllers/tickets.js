@@ -1,5 +1,6 @@
 import QRCode from 'qrcode';
 import { ethers } from 'ethers';
+import { sendTicketConfirmationEmail } from '../utils/email.js';
 
 /**
  * Tickets Controller
@@ -243,4 +244,81 @@ export default {
   mintTicket,
   verifyTicket,
   getTicketQR,
+};
+
+/**
+ * Mint ticket - Mobile app wrapper
+ * Simplified endpoint for ticket minting after payment
+ */
+export const mint = async (req, res) => {
+  try {
+    const { eventId, buyerWallet, ticketCount, orderId, email, eventTitle, eventDate, eventVenue, ticketPrice } = req.body;
+
+    if (!eventId || !buyerWallet || !ticketCount) {
+      return res.status(400).json({
+        success: false,
+        message: 'eventId, buyerWallet, and ticketCount are required'
+      });
+    }
+
+    // Generate mock ticket IDs
+    const tickets = [];
+    for (let i = 0; i < ticketCount; i++) {
+      const tokenId = `TICKET_${Date.now()}_${i}`;
+      const qrCode = await QRCode.toDataURL(tokenId);
+
+      tickets.push({
+        id: tokenId,
+        eventId,
+        buyerWallet,
+        qrCode,
+        minted: true,
+        mintedAt: new Date(),
+      });
+
+      // Store in mock DB
+      TICKETS_DB[tokenId] = {
+        tokenId,
+        eventId,
+        buyerWallet,
+        orderId,
+        qrCode,
+        used: false,
+        createdAt: new Date(),
+      };
+    }
+
+    console.log('[TICKETS] Minted', ticketCount, 'tickets for order:', orderId);
+
+    // Send confirmation email if provided
+    if (email && tickets.length > 0) {
+      try {
+        const ticketData = {
+          eventTitle: eventTitle || 'Event',
+          ticketId: tickets[0].id,
+          price: ticketPrice || 'TBD',
+          date: eventDate || 'TBD',
+          venue: eventVenue || 'TBD',
+        };
+        await sendTicketConfirmationEmail(email, ticketData);
+        console.log('[TICKETS] Confirmation email sent to', email);
+      } catch (emailError) {
+        console.error('[TICKETS] Failed to send confirmation email:', emailError.message);
+        // Don't fail the minting process if email fails
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      tickets,
+      message: `${ticketCount} ticket(s) minted successfully`
+    });
+
+  } catch (error) {
+    console.error('[TICKETS/MINT]', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to mint tickets'
+    });
+  }
 };

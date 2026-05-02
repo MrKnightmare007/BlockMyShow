@@ -132,4 +132,24 @@ router.get('/:aadhaarId', identityController.getIdentityInfo);
  */
 router.post('/verify-commitment', identityController.verifyCommitment);
 
+/**
+ * POST /api/v1/identity/verify-otp
+ * Mobile app endpoint - request OTP (with masked_id parameter)
+ * 
+ * @body {string} masked_id - Masked Aadhaar ID (last 4 digits)
+ * @body {string} phone_number - Phone number for verification
+ * @returns {object} { success, message, masked_id, expiresIn }
+ */
+router.post('/verify-otp', identityController.verifyOtpRequest);
+
+/**
+ * POST /api/v1/identity/verify-otp-code
+ * Mobile app endpoint - verify OTP code
+ * 
+ * @body {string} masked_id - Masked Aadhaar ID
+ * @body {string} otp_code - OTP code entered by user
+ * @returns {object} { success, message, identity }
+ */
+router.post('/verify-otp-code', identityController.verifyOtpCode);
+
 export default router;

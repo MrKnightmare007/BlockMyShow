@@ -125,4 +125,15 @@ router.get('/history', authenticateToken, paymentController.getPaymentHistory);
  */
 router.get('/status', paymentController.getPaymentStatus);
 
+/**
+ * POST /api/v1/payment/create-order (Mobile app wrapper)
+ * Create payment order - simplified mobile-friendly endpoint
+ * 
+ * @body {string} eventId - Event ID
+ * @body {number} amount - Total amount in INR
+ * @body {number} ticketCount - Number of tickets
+ * @returns {object} { success, orderId, amount, currency, ticketCount }
+ */
+router.post('/create-order', paymentController.createOrder);
+
 export default router;

@@ -137,4 +137,16 @@ router.get('/verify/:tokenId', ticketController.verifyTicket);
  */
 router.get('/:tokenId/qr', authenticateToken, ticketController.getTicketQR);
 
+/**
+ * POST /api/v1/tickets/mint (Mobile app wrapper)
+ * Simplified mint endpoint for mobile payment flow
+ * 
+ * @body {string} eventId - Event ID
+ * @body {string} buyerWallet - Buyer wallet address
+ * @body {number} ticketCount - Number of tickets
+ * @body {string} [orderId] - Order ID for reference
+ * @returns {object} { success, tickets, message }
+ */
+router.post('/mint', ticketController.mint);
+
 export default router;

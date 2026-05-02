@@ -134,4 +134,38 @@ router.post('/verify-qr', gateController.verifyQRCode);
  */
 router.get('/operator-stats', gateController.getOperatorStats);
 
+/**
+ * POST /api/v1/gate/verify-entry
+ * Mobile scanner app - simplified entry verification
+ * Scans ticket QR code and verifies entry eligibility
+ * 
+ * @body {string} ticketId - Ticket ID from QR code
+ * @body {string} [eventId] - Optional event ID for validation
+ * @returns {object} { success, verified, message, ticket, userInfo }
+ * 
+ * @example
+ * POST /api/v1/gate/verify-entry
+ * {
+ *   "ticketId": "TICKET_001",
+ *   "eventId": "EVENT_1"
+ * }
+ * 
+ * Response: {
+ *   "success": true,
+ *   "verified": true,
+ *   "message": "✓ Entry verified for John Doe",
+ *   "ticket": {
+ *     "id": "TICKET_001",
+ *     "eventId": "EVENT_1",
+ *     "used": true,
+ *     "usedAt": "2024-01-15T15:35:00Z"
+ *   },
+ *   "userInfo": {
+ *     "wallet": "0x123...",
+ *     "name": "John Doe"
+ *   }
+ * }
+ */
+router.post('/verify-entry', gateController.verifyEntry);
+
 export default router;

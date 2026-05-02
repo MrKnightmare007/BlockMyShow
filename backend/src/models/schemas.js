@@ -7,18 +7,20 @@ export const userSchema = {
   collection: 'users',
   fields: {
     _id: { type: 'ObjectId', description: 'MongoDB unique identifier' },
-    email: { type: 'String', unique: true, required: true, description: 'User email address' },
-    passwordHash: { type: 'String', description: 'Bcrypt hashed password' },
-    walletAddress: { type: 'String', unique: true, description: 'Web3 wallet address (0x...)' },
-    encryptedPrivateKey: { type: 'String', description: 'Encrypted wallet private key' },
+    email: { type: 'String', description: 'User email address (optional for MetaMask auth)' },
+    passwordHash: { type: 'String', description: 'Bcrypt hashed password (for email auth only)' },
+    walletAddress: { type: 'String', unique: true, description: 'Web3 wallet address (0x...) - generated at signin' },
+    publicAddress: { type: 'String', description: 'Alias for walletAddress' },
+    encryptedPrivateKey: { type: 'String', description: 'Encrypted wallet private key (NOT stored; returned once)' },
+    auth_method: { type: 'String', enum: ['email', 'google', 'metamask'], description: 'Primary authentication method' },
     role: { type: 'String', enum: ['user', 'organizer', 'admin'], default: 'user' },
     profile: {
-      name: { type: 'String', description: 'Full name' },
-      phone: { type: 'String', description: 'Phone number' },
-      avatar: { type: 'String', description: 'Avatar image URL' },
+      name: { type: 'String', description: 'Full name (optional)' },
+      phone: { type: 'String', description: 'Phone number (optional)' },
+      avatar: { type: 'String', description: 'Avatar image URL (optional)' },
     },
     identity: {
-      aadhaarId: { type: 'String', description: 'Aadhaar number (encrypted)' },
+      aadhaarId: { type: 'String', description: 'Aadhaar number (encrypted, only at booking)' },
       verified: { type: 'Boolean', default: false },
       commitment: { type: 'String', description: 'ZK commitment hash' },
       verifiedAt: { type: 'Date', description: 'Timestamp of identity verification' },
@@ -26,12 +28,35 @@ export const userSchema = {
     oauth: {
       googleId: { type: 'String', description: 'Google OAuth ID' },
       googleEmail: { type: 'String' },
+      metamaskAddress: { type: 'String', description: 'MetaMask wallet address for Ethereum signature verification' },
     },
     accountStatus: { type: 'String', enum: ['active', 'suspended', 'deleted'], default: 'active' },
     createdAt: { type: 'Date', default: 'Date.now()' },
     updatedAt: { type: 'Date', default: 'Date.now()' },
   },
-  indexes: [{ email: 1, unique: true }, { walletAddress: 1 }],
+  indexes: [{ email: 1 }, { walletAddress: 1, unique: true }, { auth_method: 1 }],
+};
+
+/**
+ * Admin Model
+ * Admin users with role-based access control
+ */
+export const adminSchema = {
+  name: 'Admin',
+  collection: 'admins',
+  fields: {
+    _id: { type: 'ObjectId', description: 'MongoDB unique identifier' },
+    username: { type: 'String', unique: true, required: true, description: 'Admin username' },
+    passwordHash: { type: 'String', required: true, description: 'Bcrypt hashed password' },
+    email: { type: 'String', description: 'Admin email (optional)' },
+    role: { type: 'String', enum: ['admin', 'gate_operator', 'event_creator'], default: 'admin', description: 'Admin role with specific permissions' },
+    permissions: [{ type: 'String', description: 'List of permissions (e.g., "create_event", "scan_gate", "manage_users")' }],
+    accountStatus: { type: 'String', enum: ['active', 'suspended', 'deleted'], default: 'active' },
+    lastLogin: { type: 'Date' },
+    createdAt: { type: 'Date', default: 'Date.now()' },
+    updatedAt: { type: 'Date', default: 'Date.now()' },
+  },
+  indexes: [{ username: 1, unique: true }, { role: 1 }, { accountStatus: 1 }],
 };
 
 /**
@@ -53,18 +78,20 @@ export const eventSchema = {
     totalTickets: { type: 'Number', required: true, description: 'Total tickets available' },
     ticketsMinted: { type: 'Number', default: 0, description: 'NFT tickets already minted' },
     organizer: { type: 'String', required: true, description: 'Organizer user ID' },
+    admin_id: { type: 'String', required: true, description: 'Admin user ID who created the event' },
     organizerAddress: { type: 'String', description: 'Organizer wallet address' },
     image: { type: 'String', description: 'Event image URL (IPFS or HTTP)' },
     metadataURI: { type: 'String', description: 'IPFS metadata URI' },
     contractAddress: { type: 'String', description: 'Smart contract deployment address' },
-    active: { type: 'Boolean', default: true, description: 'Is event still active' },
+    status: { type: 'String', enum: ['active', 'cancelled', 'completed'], default: 'active', description: 'Event status' },
+    active: { type: 'Boolean', default: true, description: 'Is event still active (deprecated, use status)' },
     cancelled: { type: 'Boolean', default: false },
     cancelledAt: { type: 'Date' },
     refundsTriggered: { type: 'Boolean', default: false },
     createdAt: { type: 'Date', default: 'Date.now()' },
     updatedAt: { type: 'Date', default: 'Date.now()' },
   },
-  indexes: [{ eventId: 1, unique: true }, { organizer: 1 }, { date: 1 }],
+  indexes: [{ eventId: 1, unique: true }, { admin_id: 1 }, { organizer: 1 }, { date: 1 }, { status: 1 }],
 };
 
 /**
@@ -136,19 +163,20 @@ export const paymentSchema = {
 };
 
 /**
- * Identity Verification Model
- * Stores OTP, commitment, and identity verification state
+ * Identity Verification Model (for Aadhaar)
+ * Stores Aadhaar data, OTP, commitment, and verification state
  */
 export const identitySchema = {
   name: 'Identity',
   collection: 'identities',
   fields: {
     _id: { type: 'ObjectId' },
-    aadhaarId: { type: 'String', unique: true, description: 'Aadhaar number (hashed)' },
-    phoneNumber: { type: 'String', description: 'Phone number linked to Aadhaar' },
-    name: { type: 'String', description: 'Name from Aadhaar' },
-    photoURL: { type: 'String', description: 'Photo from Aadhaar (IPFS)' },
-    secret: { type: 'String', description: 'Secret for commitment generation' },
+    user_id: { type: 'String', description: 'User ID attempting verification' },
+    masked_id: { type: 'String', unique: true, description: 'Masked Aadhaar ID (last 4 digits)' },
+    phone_number: { type: 'String', required: true, description: 'Phone number linked to Aadhaar' },
+    name: { type: 'String', description: 'Name from Aadhaar (optional)' },
+    profile_photo: { type: 'String', description: 'Photo from Aadhaar (IPFS URL)' },
+    verified: { type: 'Boolean', default: false, description: 'Is Aadhaar identity verified?' },
     otp: {
       code: { type: 'String', description: 'Current OTP' },
       expiresAt: { type: 'Date' },
@@ -157,8 +185,8 @@ export const identitySchema = {
     },
     commitment: {
       hash: { type: 'String', description: 'ZK commitment hash' },
+      secret: { type: 'String', description: 'Secret for commitment' },
       generatedAt: { type: 'Date' },
-      generatedBy: { type: 'String', description: 'User ID who generated commitment' },
     },
     verificationStatus: {
       type: 'String',
@@ -169,7 +197,7 @@ export const identitySchema = {
     createdAt: { type: 'Date', default: 'Date.now()' },
     updatedAt: { type: 'Date', default: 'Date.now()' },
   },
-  indexes: [{ aadhaarId: 1, unique: true }],
+  indexes: [{ masked_id: 1, unique: true }, { phone_number: 1 }, { user_id: 1 }],
 };
 
 /**

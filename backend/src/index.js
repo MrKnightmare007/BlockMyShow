@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { initializeContract, getBlockchainInfo } from './utils/blockchain.js';
+import { initializeFirebase } from './utils/firebase-config.js';
 
 // Load environment variables
 dotenv.config();
@@ -161,18 +163,44 @@ app.use((err, req, res, next) => {
 // Server Startup
 // ─────────────────────────────────────────────
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`
 ╔════════════════════════════════════════════════════════════╗
-║         ProofPass Backend API Server                       ║
+║         BlockMyShow Backend API Server                     ║
 ╚════════════════════════════════════════════════════════════╝
 
 🚀 Server started on port ${PORT}
 📡 Environment: ${process.env.NODE_ENV || 'development'}
 🔗 Base URL: http://localhost:${PORT}
 📝 API Version: ${API_VERSION}
-🌐 CORS Origin: ${process.env.CORS_ORIGIN || 'http://localhost:5173'}
+🌐 CORS Origin: ${process.env.CORS_ORIGIN || 'http://localhost:5173'}`);
 
+  // Initialize Firebase Firestore
+  try {
+    console.log('\n[STARTUP] Initializing Firebase...');
+    await initializeFirebase();
+    console.log('✓ Firebase Firestore connected');
+  } catch (error) {
+    console.warn('⚠ Firebase initialization skipped:', error.message);
+    console.warn('  Running with mock database. Data will not persist.');
+  }
+
+  // Initialize Smart Contract
+  try {
+    console.log('\n[STARTUP] Initializing Smart Contract...');
+    await initializeContract();
+    const blockchainInfo = await getBlockchainInfo();
+    if (blockchainInfo) {
+      console.log('✓ Smart Contract connected');
+      console.log(`  Network: ${blockchainInfo.network} (Chain ID: ${blockchainInfo.chainId})`);
+      console.log(`  Contract: ${blockchainInfo.contractAddress}`);
+    }
+  } catch (error) {
+    console.warn('⚠ Smart Contract initialization skipped:', error.message);
+    console.warn('  Running with mock blockchain. NFTs will not be minted on-chain.');
+  }
+
+  console.log(`
 Available Endpoints:
   Auth:     ${API_BASE}/auth
   Events:   ${API_BASE}/events

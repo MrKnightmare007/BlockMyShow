@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { sendTicketConfirmationEmail } from '../utils/email.js';
 
 /**
  * Payment Controller
@@ -200,15 +201,32 @@ async function handlePaymentFailed(payload) {
  */
 async function handlePaymentCaptured(payload) {
   const { payment } = payload;
-  const { id, order_id, notes } = payment;
+  const { id, order_id, notes, email } = payment;
 
   console.log('[PAYMENT] Captured - Triggering NFT mint:', id);
 
   // TODO: Extract ticket metadata from notes
   // TODO: Call TicketNFT contract to mint ticket
   // TODO: Store NFT tokenId in DB
-  // TODO: Send success email to user with ticket details
   // TODO: Generate QR code with tokenId
+
+  // Send confirmation email if email is available
+  if (email && notes) {
+    try {
+      const ticketData = {
+        eventTitle: notes.eventTitle || 'Ticket Event',
+        ticketId: notes.tokenId || id,
+        price: notes.amount || 'TBD',
+        date: notes.eventDate || 'TBD',
+        venue: notes.eventVenue || 'TBD',
+      };
+      await sendTicketConfirmationEmail(email, ticketData);
+      console.log('[PAYMENT] Confirmation email sent to', email);
+    } catch (emailError) {
+      console.error('[PAYMENT] Failed to send confirmation email:', emailError.message);
+      // Don't fail the payment process if email fails
+    }
+  }
 }
 
 /**
@@ -292,4 +310,42 @@ export default {
   handleWebhook,
   getPaymentHistory,
   getPaymentStatus,
+};
+
+/**
+ * Create order - Mobile app wrapper
+ * Simplified endpoint for mobile payment flow
+ */
+export const createOrder = async (req, res) => {
+  try {
+    const { eventId, amount, ticketCount } = req.body;
+
+    if (!eventId || !amount || !ticketCount) {
+      return res.status(400).json({
+        success: false,
+        message: 'eventId, amount, and ticketCount are required'
+      });
+    }
+
+    // Mock order creation
+    const orderId = `order_${Date.now()}`;
+
+    console.log('[PAYMENT] Mobile order created:', orderId);
+
+    return res.status(200).json({
+      success: true,
+      orderId,
+      amount,
+      currency: 'INR',
+      ticketCount,
+      message: 'Order created successfully'
+    });
+
+  } catch (error) {
+    console.error('[PAYMENT/CREATE-ORDER]', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to create order'
+    });
+  }
 };

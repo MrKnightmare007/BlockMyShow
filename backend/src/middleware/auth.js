@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import * as authUtils from '../utils/auth-utils.js';
 
 /**
  * Authentication Middleware
@@ -26,6 +27,7 @@ export const authenticateToken = (req, res, next) => {
     }
 
     req.user = user;
+    req.user.role = authUtils.extractRoleFromJWT(user);
     next();
   });
 };
@@ -50,15 +52,32 @@ export const optionalAuth = (req, res, next) => {
     }
 
     req.user = user;
+    req.user.role = authUtils.extractRoleFromJWT(user);
     next();
   });
 };
 
 /**
- * Role-based Authorization Middleware
- * Checks if user has required role(s)
+ * Admin Role Check Middleware
+ * Ensures user is an admin based on JWT role
+ * Must be used after authenticateToken
  */
-export const authorize = (...allowedRoles) => {
+export const requireAdmin = (req, res, next) => {
+  if (!req.user || !req.user.isAdmin) {
+    return res.status(403).json({
+      error: 'Forbidden',
+      message: 'This endpoint requires admin privileges',
+    });
+  }
+  next();
+};
+
+/**
+ * Role-Based Access Control Middleware
+ * @param {array} allowedRoles - Array of roles that have access
+ * @returns {function} Middleware function
+ */
+export const requireRole = (allowedRoles = []) => {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({
@@ -67,11 +86,11 @@ export const authorize = (...allowedRoles) => {
       });
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
+    const userRole = req.user.role || 'user';
+    if (!allowedRoles.includes(userRole)) {
       return res.status(403).json({
         error: 'Forbidden',
-        message: `This action requires one of the following roles: ${allowedRoles.join(', ')}`,
-        userRole: req.user.role,
+        message: `This endpoint requires one of these roles: ${allowedRoles.join(', ')}`,
       });
     }
 
@@ -80,54 +99,37 @@ export const authorize = (...allowedRoles) => {
 };
 
 /**
- * Admin Check Middleware
- * Verifies user is admin
+ * Permission Check Middleware
+ * @param {array} requiredPermissions - Array of required permissions
+ * @returns {function} Middleware function
  */
-export const isAdmin = (req, res, next) => {
-  if (!req.user) {
-    return res.status(401).json({
-      error: 'Unauthorized',
-      message: 'Authentication required',
-    });
-  }
-
-  if (req.user.role !== 'admin' && req.user.role !== 'organizer') {
-    return res.status(403).json({
-      error: 'Forbidden',
-      message: 'Only admins can perform this action',
-    });
-  }
-
-  next();
-};
-
-/**
- * Rate Limiting Helper
- * Implement basic rate limiting (in production, use redis-based solution)
- */
-const rateLimitStore = new Map();
-
-export const rateLimit = (maxRequests = 100, windowMs = 15 * 60 * 1000) => {
+export const requirePermission = (requiredPermissions = []) => {
   return (req, res, next) => {
-    const key = req.ip || req.connection.remoteAddress;
-    const now = Date.now();
-    const userRequests = rateLimitStore.get(key) || [];
-
-    // Remove old requests outside the window
-    const recentRequests = userRequests.filter((t) => now - t < windowMs);
-
-    if (recentRequests.length >= maxRequests) {
-      return res.status(429).json({
-        error: 'Too Many Requests',
-        message: `Rate limit exceeded. Maximum ${maxRequests} requests per ${windowMs / 1000} seconds`,
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Authentication required',
       });
     }
 
-    recentRequests.push(now);
-    rateLimitStore.set(key, recentRequests);
+    const userRole = req.user.role || 'user';
+    const hasPermission = authUtils.hasPermission(userRole, requiredPermissions);
+
+    if (!hasPermission) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: `This endpoint requires one of these permissions: ${requiredPermissions.join(', ')}`,
+      });
+    }
 
     next();
   };
 };
 
-export default authenticateToken;
+export default {
+  authenticateToken,
+  optionalAuth,
+  requireAdmin,
+  requireRole,
+  requirePermission,
+};

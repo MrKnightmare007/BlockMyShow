@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { sendOTPEmail } from '../utils/email.js';
 
 /**
  * Identity Verification Controller
@@ -26,11 +27,11 @@ const OTP_STORE = new Map();
 const COMMITMENT_STORE = new Map();
 
 /**
- * Send OTP to Aadhaar-linked phone number
+ * Send OTP to Aadhaar-linked phone number (and email if provided)
  */
 export const sendOTP = async (req, res) => {
   try {
-    const { aadhaarId, phone } = req.body;
+    const { aadhaarId, phone, email } = req.body;
 
     // Validate input
     if (!aadhaarId) {
@@ -79,13 +80,23 @@ export const sendOTP = async (req, res) => {
 
     console.log('[IDENTITY] OTP sent to', aadhaarData.phone, '- OTP:', otp);
 
+    // Send email if provided
+    if (email) {
+      try {
+        await sendOTPEmail(email, otp);
+      } catch (emailError) {
+        console.error('Warning: Failed to send OTP email:', emailError.message);
+        // Don't fail the request if email fails
+      }
+    }
+
     // TODO: Actually send SMS via provider
     // await sendSMSViaProvider(aadhaarData.phone, `Your OTP is: ${otp}`);
 
     res.json({
       aadhaarId,
       phone: aadhaarData.phone, // Masked in production
-      message: 'OTP sent successfully',
+      message: email ? 'OTP sent to email and phone' : 'OTP sent to phone',
       expiresIn: 600, // seconds
     });
   } catch (error) {
@@ -328,4 +339,137 @@ export default {
   generateCommitment,
   getIdentityInfo,
   verifyCommitment,
+};
+
+/**
+ * Request OTP - Frontend wrapper (called by mobile app)
+ * Same as sendOTP but with masked_id instead of aadhaarId
+ */
+export const verifyOtpRequest = async (req, res) => {
+  try {
+    const { masked_id, phone_number } = req.body;
+
+    if (!masked_id || !phone_number) {
+      return res.status(400).json({
+        success: false,
+        message: 'masked_id and phone_number are required'
+      });
+    }
+
+    // In production, mask_id would be looked up to find full Aadhaar
+    // For now, treat masked_id as the key
+    const aadhaarData = AADHAAR_REGISTRY[masked_id];
+    if (!aadhaarData) {
+      return res.status(404).json({
+        success: false,
+        message: 'Aadhaar ID not found in registry'
+      });
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    // Store OTP temporarily
+    OTP_STORE.set(masked_id, {
+      otp,
+      expiresAt,
+      attempts: 0,
+    });
+
+    console.log('[IDENTITY] OTP requested for', masked_id, '- OTP:', otp);
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP sent successfully',
+      masked_id,
+      expiresIn: 600
+    });
+
+  } catch (error) {
+    console.error('[IDENTITY/VERIFY-OTP-REQUEST]', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error during OTP request'
+    });
+  }
+};
+
+/**
+ * Verify OTP Code - Frontend wrapper (called by mobile app)
+ */
+export const verifyOtpCode = async (req, res) => {
+  try {
+    const { masked_id, otp_code } = req.body;
+
+    if (!masked_id || !otp_code) {
+      return res.status(400).json({
+        success: false,
+        message: 'masked_id and otp_code are required'
+      });
+    }
+
+    const storedOTP = OTP_STORE.get(masked_id);
+
+    // Check if OTP exists
+    if (!storedOTP) {
+      return res.status(400).json({
+        success: false,
+        message: 'No OTP requested for this Aadhaar ID'
+      });
+    }
+
+    // Check if OTP expired
+    if (Date.now() > storedOTP.expiresAt) {
+      OTP_STORE.delete(masked_id);
+      return res.status(400).json({
+        success: false,
+        message: 'OTP has expired. Request a new OTP.'
+      });
+    }
+
+    // Check attempt limit
+    if (storedOTP.attempts >= 5) {
+      OTP_STORE.delete(masked_id);
+      return res.status(429).json({
+        success: false,
+        message: 'Too many failed OTP verification attempts'
+      });
+    }
+
+    // Verify OTP
+    if (storedOTP.otp !== otp_code) {
+      storedOTP.attempts += 1;
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid OTP',
+        attemptsRemaining: 5 - storedOTP.attempts
+      });
+    }
+
+    // OTP verified successfully
+    OTP_STORE.delete(masked_id);
+
+    const aadhaarData = AADHAAR_REGISTRY[masked_id];
+
+    console.log('[IDENTITY] OTP verified for', masked_id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP verified successfully',
+      identity: {
+        masked_id,
+        name: aadhaarData.name,
+        phone: aadhaarData.phone,
+        verified: true
+      }
+    });
+
+  } catch (error) {
+    console.error('[IDENTITY/VERIFY-OTP-CODE]', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error during OTP verification'
+    });
+  }
 };

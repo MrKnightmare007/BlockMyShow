@@ -292,3 +292,92 @@ export const markEntryComplete = async (req, res) => {
 export const getVerificationStats = async (req, res) => {
   // Get gate verification statistics
 };
+
+/**
+ * Verify ticket entry (simplified for mobile scanner)
+ * Called from admin gate scanner app
+ */
+export const verifyEntry = async (req, res) => {
+  try {
+    const { ticketId, eventId } = req.body;
+    const gateOperatorId = req.user?.id || 'scanner_app';
+
+    // Validation
+    if (!ticketId) {
+      return res.status(400).json({
+        success: false,
+        verified: false,
+        message: 'Ticket ID is required'
+      });
+    }
+
+    // Mock ticket lookup (TODO: replace with Firestore/blockchain query)
+    const mockTickets = {
+      'TICKET_001': { id: 'TICKET_001', eventId: 'EVENT_1', buyerWallet: '0x123...', used: false, usedAt: null, userName: 'John Doe' },
+      'TICKET_002': { id: 'TICKET_002', eventId: 'EVENT_1', buyerWallet: '0x456...', used: false, usedAt: null, userName: 'Jane Smith' },
+    };
+
+    const ticket = mockTickets[ticketId];
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        verified: false,
+        message: 'Ticket not found or invalid'
+      });
+    }
+
+    // Check if already used
+    if (ticket.used) {
+      return res.status(400).json({
+        success: false,
+        verified: false,
+        message: `Ticket already used at ${new Date(ticket.usedAt).toLocaleString()}`
+      });
+    }
+
+    // Check event match if eventId provided
+    if (eventId && ticket.eventId !== eventId) {
+      return res.status(400).json({
+        success: false,
+        verified: false,
+        message: 'Ticket does not match this event'
+      });
+    }
+
+    // Mark ticket as used
+    ticket.used = true;
+    ticket.usedAt = new Date();
+    ticket.usedBy = gateOperatorId;
+
+    // Update stats
+    updateGateStats(ticket.eventId, gateOperatorId, 'verified');
+    updateGateStats(ticket.eventId, gateOperatorId, 'used');
+
+    // Success response
+    return res.status(200).json({
+      success: true,
+      verified: true,
+      message: `✓ Entry verified for ${ticket.userName}`,
+      ticket: {
+        id: ticket.id,
+        eventId: ticket.eventId,
+        used: ticket.used,
+        usedAt: ticket.usedAt,
+      },
+      userInfo: {
+        wallet: ticket.buyerWallet,
+        name: ticket.userName
+      }
+    });
+
+  } catch (error) {
+    console.error('[GATE/VERIFY-ENTRY]', error);
+    return res.status(500).json({
+      success: false,
+      verified: false,
+      message: 'Server error during verification',
+      error: error.message
+    });
+  }
+};
