@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import Loader from '../components/Loader';
 
 const API_BASE = 'http://localhost:5000/api/v1';
 
@@ -15,68 +16,110 @@ const Icon = {
   ),
 };
 
+/**
+ * AuthPage
+ * Handles Sign Up and Sign In flows for:
+ *  - Email / Password  (sign up via OTP → /auth/send-email-otp + /auth/verify-email-otp)
+ *                      (sign in via /auth/login/email)
+ *  - Google OAuth      (/auth/signup/google  or  /auth/login/google)
+ *  - MetaMask          (/auth/signup/metamask or /auth/login/metamask)
+ */
 const AuthPage = () => {
   const { login, setAuthError, error } = useAuth();
   const [activeTab, setActiveTab] = useState('email');
-  const [form, setForm] = useState({ email: '', password: '', name: '' });
+  const [isSignup, setIsSignup] = useState(false);
+  const [form, setForm] = useState({ email: '', password: '', name: '', otp: '' });
+  const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleEmailAuth = async (isSignup) => {
+  // ─── OTP Step (Sign Up flow) ──────────────────────────────────────────────
+
+  const handleSendOTP = async () => {
     setLoading(true);
     try {
-      const endpoint = isSignup ? '/auth/login' : '/auth/login';
-      const response = await fetch(`${API_BASE}${endpoint}`, {
+      const response = await fetch(`${API_BASE}/auth/send-email-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: form.email, 
-          password: form.password, 
-          ...(isSignup && { name: form.name }) 
-        }),
+        body: JSON.stringify({ email: form.email }),
       });
       const data = await response.json();
-      if (!data.success) throw new Error(data.error || 'Auth failed');
-      
-      // Backend returns user, token, and wallet address
-      login(data.user, data.token, data.user.wallet);
+      if (!response.ok) throw new Error(data.message || data.error || 'Failed to send OTP');
+      setOtpSent(true);
+      setAuthError(null);
     } catch (err) {
       setAuthError(err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  const handleVerifyOTP = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/auth/verify-email-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: form.email,
+          otp: form.otp,
+          password: form.password,
+          name: form.name,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || data.error || 'OTP verification failed');
+      // walletAddress comes back top-level from the backend
+      login(data.user, data.token, data.walletAddress || data.user?.walletAddress);
+    } catch (err) {
+      setAuthError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── Email Sign In ────────────────────────────────────────────────────────
+
+  const handleEmailLogin = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/auth/login/email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email, password: form.password }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || data.error || 'Login failed');
+      login(data.user, data.token, data.walletAddress || data.user?.walletAddress);
+    } catch (err) {
+      setAuthError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── Google Auth ──────────────────────────────────────────────────────────
 
   const handleGoogleAuth = async () => {
     setLoading(true);
     try {
-      // Mock Google OAuth - in real implementation, use Firebase Auth
-      const mockGoogleUser = {
-        email: 'user@gmail.com',
-        name: 'Google User',
-        wallet: '0x' + Math.random().toString(16).substr(2, 40)
-      };
-      
-      const response = await fetch(`${API_BASE}/auth/login`, {
+      const endpoint = isSignup ? '/auth/signup/google' : '/auth/login/google';
+      // Mock Google token (replace with actual Firebase Auth in production)
+      const response = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: mockGoogleUser.email, 
-          password: 'google_auth_' + Date.now(),
-          name: mockGoogleUser.name,
-          authType: 'google'
-        }),
+        body: JSON.stringify({ googleToken: 'mock_google_token_' + Date.now() }),
       });
-      
       const data = await response.json();
-      if (!data.success) throw new Error(data.error || 'Google auth failed');
-      
-      login(data.user, data.token, data.user.wallet);
+      if (!response.ok) throw new Error(data.message || data.error || 'Google auth failed');
+      login(data.user, data.token, data.walletAddress || data.user?.walletAddress);
     } catch (err) {
       setAuthError(err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  // ─── MetaMask Auth ────────────────────────────────────────────────────────
 
   const handleMetaMaskAuth = async () => {
     setLoading(true);
@@ -84,35 +127,21 @@ const AuthPage = () => {
       if (!window.ethereum) {
         throw new Error('MetaMask not installed. Please install MetaMask to continue.');
       }
-      
-      // Request account access
-      const accounts = await window.ethereum.request({ 
-        method: 'eth_requestAccounts' 
-      });
-      
-      if (!accounts || accounts.length === 0) {
-        throw new Error('No MetaMask accounts found');
-      }
-      
-      const walletAddress = accounts[0];
-      
-      // Create account with MetaMask address
-      const response = await fetch(`${API_BASE}/auth/login`, {
+
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      if (!accounts || accounts.length === 0) throw new Error('No MetaMask accounts found');
+
+      const address = accounts[0];
+      const endpoint = isSignup ? '/auth/signup/metamask' : '/auth/login/metamask';
+
+      const response = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: `${walletAddress}@metamask.local`,
-          password: 'metamask_auth_' + Date.now(),
-          name: `MetaMask User`,
-          authType: 'metamask',
-          walletAddress: walletAddress
-        }),
+        body: JSON.stringify({ address, signature: 'mock_sig', message: 'BlockMyShow Login' }),
       });
-      
       const data = await response.json();
-      if (!data.success) throw new Error(data.error || 'MetaMask auth failed');
-      
-      login(data.user, data.token, walletAddress);
+      if (!response.ok) throw new Error(data.message || data.error || 'MetaMask auth failed');
+      login(data.user, data.token, data.walletAddress || address);
     } catch (err) {
       setAuthError(err.message);
     } finally {
@@ -120,32 +149,41 @@ const AuthPage = () => {
     }
   };
 
+  // ─── Reset state when switching modes ────────────────────────────────────
+
+  const switchMode = (signup) => {
+    setIsSignup(signup);
+    setOtpSent(false);
+    setForm({ email: '', password: '', name: '', otp: '' });
+    setAuthError(null);
+  };
+
+  // ─── Render ───────────────────────────────────────────────────────────────
+
   return (
-    <div style={{ 
-      display: 'grid', 
-      gridTemplateColumns: '1fr 1fr', 
-      minHeight: '100vh', 
-      background: '#fafafa' 
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      minHeight: '100vh',
+      background: '#fafafa'
     }}>
-      {/* Left Panel - Branding */}
-      <div style={{ 
-        background: '#000', 
-        color: '#fff', 
-        padding: '3rem', 
-        display: 'flex', 
-        flexDirection: 'column', 
+      {/* Full-screen loader overlay */}
+      {loading && <Loader fullScreen text={otpSent ? 'Verifying OTP...' : 'Authenticating...'} />}
+
+      {/* Left Panel – Branding */}
+      <div style={{
+        background: '#000',
+        color: '#fff',
+        padding: '3rem',
+        display: 'flex',
+        flexDirection: 'column',
         justifyContent: 'space-between',
-        borderRight: '3px solid #000' 
+        borderRight: '3px solid #000'
       }}>
         <div>
-          <h1 style={{ 
-            fontSize: '3rem', 
-            fontFamily: 'Syne, sans-serif', 
-            lineHeight: 1, 
-            marginBottom: '2rem' 
-          }}>
-            NFT <span style={{ color: '#4a90e2' }}>Tickets</span><br/>
-            Web3 <span style={{ color: '#4a90e2' }}>Events</span>
+          <h1 style={{ fontSize: '3rem', fontFamily: 'Syne, sans-serif', lineHeight: 1, marginBottom: '2rem' }}>
+            NFT <span style={{ color: '#31bbaf' }}>Tickets</span><br/>
+            Web3 <span style={{ color: '#31bbaf' }}>Events</span>
           </h1>
           <p style={{ fontSize: '1.1rem', opacity: 0.8, marginBottom: '2rem' }}>
             Secure, identity-bound event tickets powered by blockchain technology
@@ -157,34 +195,52 @@ const AuthPage = () => {
             <div>✓ Automatic wallet creation</div>
           </div>
         </div>
-        <div style={{ fontSize: '0.8rem', opacity: 0.5 }}>
-          BlockMyShow © 2026
-        </div>
+        <div style={{ fontSize: '0.8rem', opacity: 0.5 }}>BlockMyShow © 2026</div>
       </div>
 
-      {/* Right Panel - Authentication */}
-      <div style={{ 
-        padding: '3rem', 
-        display: 'flex', 
-        flexDirection: 'column', 
-        justifyContent: 'center' 
+      {/* Right Panel – Authentication */}
+      <div style={{
+        padding: '3rem',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center'
       }}>
         <div style={{ maxWidth: '400px' }}>
           <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>
             Welcome to BlockMyShow
           </h2>
-          <p style={{ color: '#666', fontSize: '0.9rem', marginBottom: '2rem' }}>
-            Choose your preferred login method
-          </p>
 
+          {/* Sign Up / Sign In toggle */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '1.5rem' }}>
+            <button
+              onClick={() => switchMode(false)}
+              style={{
+                flex: 1, padding: '10px', border: !isSignup ? '2px solid #000' : '2px solid #ccc',
+                background: !isSignup ? '#000' : '#fff', color: !isSignup ? '#fff' : '#000',
+                cursor: 'pointer', fontFamily: 'monospace', fontSize: '12px', fontWeight: 'bold',
+                borderRadius: '4px', transition: 'all 0.2s'
+              }}
+            >
+              Sign In
+            </button>
+            <button
+              onClick={() => switchMode(true)}
+              style={{
+                flex: 1, padding: '10px', border: isSignup ? '2px solid #000' : '2px solid #ccc',
+                background: isSignup ? '#000' : '#fff', color: isSignup ? '#fff' : '#000',
+                cursor: 'pointer', fontFamily: 'monospace', fontSize: '12px', fontWeight: 'bold',
+                borderRadius: '4px', transition: 'all 0.2s'
+              }}
+            >
+              Sign Up
+            </button>
+          </div>
+
+          {/* Error Banner */}
           {error && (
-            <div style={{ 
-              background: '#fee2e2', 
-              color: '#dc2626', 
-              padding: '12px', 
-              marginBottom: '1rem', 
-              fontSize: '12px', 
-              border: '2px solid #dc2626',
+            <div style={{
+              background: '#fee2e2', color: '#dc2626', padding: '12px',
+              marginBottom: '1rem', fontSize: '12px', border: '2px solid #dc2626',
               borderRadius: '4px'
             }}>
               {error}
@@ -192,27 +248,18 @@ const AuthPage = () => {
           )}
 
           {/* Auth Method Tabs */}
-          <div style={{ 
-            display: 'flex', 
-            gap: '8px', 
-            marginBottom: '1.5rem' 
-          }}>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '1.5rem' }}>
             {['email', 'google', 'metamask'].map(tab => (
-              <button 
-                key={tab} 
-                onClick={() => setActiveTab(tab)} 
-                style={{ 
-                  flex: 1, 
-                  padding: '10px 8px', 
-                  border: activeTab === tab ? '2px solid #000' : '2px solid #ccc', 
-                  background: activeTab === tab ? '#000' : '#fff', 
-                  color: activeTab === tab ? '#fff' : '#000', 
-                  cursor: 'pointer', 
-                  fontFamily: 'monospace', 
-                  fontSize: '11px', 
-                  fontWeight: 'bold',
-                  borderRadius: '4px',
-                  transition: 'all 0.2s'
+              <button
+                key={tab}
+                onClick={() => { setActiveTab(tab); setOtpSent(false); setAuthError(null); }}
+                style={{
+                  flex: 1, padding: '10px 8px',
+                  border: activeTab === tab ? '2px solid #31bbaf' : '2px solid #ccc',
+                  background: activeTab === tab ? '#31bbaf' : '#fff',
+                  color: activeTab === tab ? '#fff' : '#000',
+                  cursor: 'pointer', fontFamily: 'monospace', fontSize: '11px',
+                  fontWeight: 'bold', borderRadius: '4px', transition: 'all 0.2s'
                 }}
               >
                 {tab === 'email' ? '📧' : tab === 'google' ? '🔵' : '🦊'} {tab.toUpperCase()}
@@ -220,131 +267,106 @@ const AuthPage = () => {
             ))}
           </div>
 
-          {/* Email/Password Form */}
+          {/* ── EMAIL TAB ── */}
           {activeTab === 'email' && (
             <div>
-              <input 
-                type="email" 
-                placeholder="Email address" 
-                value={form.email} 
-                onChange={e => setForm({ ...form, email: e.target.value })} 
-                style={{ 
-                  width: '100%', 
-                  padding: '12px', 
-                  marginBottom: '12px', 
-                  border: '2px solid #ddd', 
-                  borderRadius: '4px',
-                  fontFamily: 'monospace',
-                  fontSize: '14px'
-                }} 
-              />
-              <input 
-                type="password" 
-                placeholder="Password" 
-                value={form.password} 
-                onChange={e => setForm({ ...form, password: e.target.value })} 
-                style={{ 
-                  width: '100%', 
-                  padding: '12px', 
-                  marginBottom: '12px', 
-                  border: '2px solid #ddd', 
-                  borderRadius: '4px',
-                  fontFamily: 'monospace',
-                  fontSize: '14px'
-                }} 
-              />
-              <input 
-                type="text" 
-                placeholder="Full name (optional)" 
-                value={form.name} 
-                onChange={e => setForm({ ...form, name: e.target.value })} 
-                style={{ 
-                  width: '100%', 
-                  padding: '12px', 
-                  marginBottom: '16px', 
-                  border: '2px solid #ddd', 
-                  borderRadius: '4px',
-                  fontFamily: 'monospace',
-                  fontSize: '14px'
-                }} 
-              />
-              <button 
-                onClick={() => handleEmailAuth(true)} 
-                disabled={loading || !form.email || !form.password} 
-                style={{ 
-                  width: '100%', 
-                  padding: '12px', 
-                  background: '#000', 
-                  color: '#fff', 
-                  border: '2px solid #000', 
-                  cursor: loading ? 'not-allowed' : 'pointer', 
-                  fontFamily: 'monospace', 
-                  marginBottom: '8px',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  opacity: loading || !form.email || !form.password ? 0.6 : 1
-                }}
-              >
-                {loading ? 'Creating Account...' : 'Sign Up / Login'}
-              </button>
-              <p style={{ fontSize: '11px', color: '#666', textAlign: 'center' }}>
-                New users will be automatically registered
-              </p>
+              {/* Sign Up via OTP */}
+              {isSignup ? (
+                otpSent ? (
+                  /* Step 2: Enter OTP */
+                  <>
+                    <p style={{ fontSize: '12px', color: '#555', marginBottom: '12px' }}>
+                      OTP sent to <strong>{form.email}</strong>. Check your inbox.
+                    </p>
+                    <input
+                      type="text"
+                      placeholder="Enter 6-digit OTP"
+                      maxLength={6}
+                      value={form.otp}
+                      onChange={e => setForm({ ...form, otp: e.target.value })}
+                      style={inputStyle}
+                    />
+                    <button
+                      onClick={handleVerifyOTP}
+                      disabled={loading || form.otp.length !== 6}
+                      style={btnStyle(loading || form.otp.length !== 6)}
+                    >
+                      {loading ? 'Verifying...' : 'Verify OTP & Create Account'}
+                    </button>
+                    <button
+                      onClick={() => setOtpSent(false)}
+                      style={{ ...btnStyle(false), background: '#fff', color: '#000', border: '2px solid #ccc', marginTop: '8px' }}
+                    >
+                      ← Back
+                    </button>
+                  </>
+                ) : (
+                  /* Step 1: Enter details + Send OTP */
+                  <>
+                    <input type="text" placeholder="Full name (optional)" value={form.name}
+                      onChange={e => setForm({ ...form, name: e.target.value })} style={inputStyle} />
+                    <input type="email" placeholder="Email address" value={form.email}
+                      onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} />
+                    <input type="password" placeholder="Password" value={form.password}
+                      onChange={e => setForm({ ...form, password: e.target.value })} style={inputStyle} />
+                    <button
+                      onClick={handleSendOTP}
+                      disabled={loading || !form.email || !form.password}
+                      style={btnStyle(loading || !form.email || !form.password)}
+                    >
+                      {loading ? 'Sending OTP...' : 'Send OTP to Email'}
+                    </button>
+                  </>
+                )
+              ) : (
+                /* Sign In with email + password */
+                <>
+                  <input type="email" placeholder="Email address" value={form.email}
+                    onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} />
+                  <input type="password" placeholder="Password" value={form.password}
+                    onChange={e => setForm({ ...form, password: e.target.value })} style={inputStyle} />
+                  <button
+                    onClick={handleEmailLogin}
+                    disabled={loading || !form.email || !form.password}
+                    style={btnStyle(loading || !form.email || !form.password)}
+                  >
+                    {loading ? 'Signing In...' : 'Sign In'}
+                  </button>
+                </>
+              )}
             </div>
           )}
 
-          {/* Google OAuth */}
+          {/* ── GOOGLE TAB ── */}
           {activeTab === 'google' && (
-            <button 
-              onClick={handleGoogleAuth} 
-              disabled={loading} 
-              style={{ 
-                width: '100%', 
-                padding: '12px', 
-                background: '#fff', 
-                color: '#000', 
-                border: '2px solid #4285F4', 
-                cursor: loading ? 'not-allowed' : 'pointer', 
-                fontFamily: 'monospace', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                gap: '8px',
-                borderRadius: '4px',
-                fontSize: '14px',
-                opacity: loading ? 0.6 : 1
+            <button
+              onClick={handleGoogleAuth}
+              disabled={loading}
+              style={{
+                ...btnStyle(loading),
+                background: '#fff', color: '#000', border: '2px solid #4285F4',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
               }}
             >
-              <Icon.Google /> 
-              {loading ? 'Connecting...' : 'Continue with Google'}
+              <Icon.Google />
+              {loading ? 'Connecting...' : isSignup ? 'Sign Up with Google' : 'Sign In with Google'}
             </button>
           )}
 
-          {/* MetaMask */}
+          {/* ── METAMASK TAB ── */}
           {activeTab === 'metamask' && (
             <div>
-              <button 
-                onClick={handleMetaMaskAuth} 
-                disabled={loading} 
-                style={{ 
-                  width: '100%', 
-                  padding: '12px', 
-                  background: '#fff8f0', 
-                  color: '#000', 
-                  border: '2px solid #e2761b', 
-                  cursor: loading ? 'not-allowed' : 'pointer', 
-                  fontFamily: 'monospace', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  gap: '8px',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  marginBottom: '12px',
-                  opacity: loading ? 0.6 : 1
+              <button
+                onClick={handleMetaMaskAuth}
+                disabled={loading}
+                style={{
+                  ...btnStyle(loading),
+                  background: '#fff8f0', color: '#000', border: '2px solid #e2761b',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  marginBottom: '12px'
                 }}
               >
-                🦊 {loading ? 'Connecting...' : 'Connect MetaMask Wallet'}
+                🦊 {loading ? 'Connecting...' : isSignup ? 'Sign Up with MetaMask' : 'Sign In with MetaMask'}
               </button>
               <p style={{ fontSize: '11px', color: '#666', textAlign: 'center' }}>
                 Your wallet address will be used for NFT ticket delivery
@@ -356,5 +378,33 @@ const AuthPage = () => {
     </div>
   );
 };
+
+// ── Shared input / button styles ─────────────────────────────────────────────
+
+const inputStyle = {
+  width: '100%',
+  padding: '12px',
+  marginBottom: '12px',
+  border: '2px solid #ddd',
+  borderRadius: '4px',
+  fontFamily: 'monospace',
+  fontSize: '14px',
+  boxSizing: 'border-box',
+};
+
+const btnStyle = (disabled) => ({
+  width: '100%',
+  padding: '12px',
+  background: disabled ? '#ccc' : '#000',
+  color: '#fff',
+  border: '2px solid #000',
+  cursor: disabled ? 'not-allowed' : 'pointer',
+  fontFamily: 'monospace',
+  marginBottom: '8px',
+  borderRadius: '4px',
+  fontSize: '14px',
+  opacity: disabled ? 0.6 : 1,
+  transition: 'all 0.2s',
+});
 
 export default AuthPage;

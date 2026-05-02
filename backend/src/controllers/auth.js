@@ -1,5 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { ethers } from 'ethers';
+import { initializeFirebase } from '../utils/firebase-config.js';
+import db from '../utils/db.js';
 import * as authUtils from '../utils/auth-utils.js';
 import { sendOTPEmail, sendWelcomeEmail, sendAdminWelcomeEmail } from '../utils/email.js';
 
@@ -194,11 +196,18 @@ export const verifyEmailOTP = async (req, res) => {
  * Register new user with email and password
  * Generates wallet address but not private key
  */
+
+
+/**
+ * POST /auth/signup/email
+ * Register new user with email + password
+ * In production this is handled by the OTP flow (/send-email-otp + /verify-email-otp).
+ * This direct-signup variant is kept for backwards compat / admin tooling.
+ */
 export const signupEmail = async (req, res) => {
   try {
     const { email, password, name } = req.body;
 
-    // Validation
     if (!email || !password) {
       return res.status(400).json({
         error: 'Bad Request',
@@ -206,11 +215,8 @@ export const signupEmail = async (req, res) => {
       });
     }
 
-    // TODO: Check if user exists in DB
-    // For now, create mock user
     const wallet = authUtils.generateWallet();
     const passwordHash = authUtils.hashPassword(password);
-    const privateKeyHash = authUtils.hashPrivateKey(wallet.privateKey);
 
     const user = {
       id: `user_${Date.now()}`,
@@ -220,15 +226,11 @@ export const signupEmail = async (req, res) => {
       publicAddress: wallet.address,
       auth_method: 'email',
       role: 'user',
-      profile: {
-        name: name || null,
-        avatar: null,
-        phone: null,
-      },
+      verified: false,
+      profile: { name: name || null, avatar: null, phone: null },
       createdAt: new Date(),
     };
 
-    // Store wallet info in session/DB (NOT private key)
     const token = authUtils.createJWT({
       id: user.id,
       email: user.email,
@@ -237,12 +239,10 @@ export const signupEmail = async (req, res) => {
       auth_method: 'email',
     });
 
-    // Send welcome email
     try {
       await sendWelcomeEmail(email, name || email);
     } catch (emailError) {
       console.error('Warning: Failed to send welcome email:', emailError.message);
-      // Don't fail the signup if email fails
     }
 
     res.status(201).json({
@@ -250,14 +250,11 @@ export const signupEmail = async (req, res) => {
       user: authUtils.sanitizeUserResponse(user),
       token,
       walletAddress: wallet.address,
-      message: 'Email signup successful. Welcome email sent. Call /wallet-keypair to get private key.',
+      message: 'Account created successfully.',
     });
   } catch (error) {
     console.error('[AUTH/SIGNUP-EMAIL]', error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: error.message,
-    });
+    res.status(500).json({ error: 'Internal Server Error', message: error.message });
   }
 };
 

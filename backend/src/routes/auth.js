@@ -6,6 +6,24 @@ const router = express.Router();
 
 /**
  * ========================
+ * EMAIL OTP VERIFICATION
+ * ========================
+ */
+
+/**
+ * POST /auth/send-email-otp
+ * Send OTP to user's email for sign-up verification
+ */
+router.post('/send-email-otp', authController.sendEmailOTP);
+
+/**
+ * POST /auth/verify-email-otp
+ * Verify OTP and complete email sign-up
+ */
+router.post('/verify-email-otp', authController.verifyEmailOTP);
+
+/**
+ * ========================
  * EMAIL AUTHENTICATION
  * ========================
  */
