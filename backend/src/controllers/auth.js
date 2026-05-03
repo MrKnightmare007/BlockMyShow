@@ -10,6 +10,7 @@ import { sendOTPEmail, sendWelcomeEmail, sendAdminWelcomeEmail } from '../utils/
  * In production, use Redis or Firestore
  */
 const EMAIL_OTP_STORE = new Map();
+const RESET_PASSWORD_OTP_STORE = new Map();
 
 /**
  * Authentication Controller - Multi-Method Auth
@@ -48,7 +49,8 @@ export const sendEmailOTP = async (req, res) => {
     const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
 
     // Store OTP
-    EMAIL_OTP_STORE.set(email, {
+    const normalizedEmail = email.toLowerCase();
+    EMAIL_OTP_STORE.set(normalizedEmail, {
       otp,
       expiresAt,
       attempts: 0,
@@ -101,8 +103,10 @@ export const verifyEmailOTP = async (req, res) => {
     }
 
     // Check if OTP exists
-    const storedOTP = EMAIL_OTP_STORE.get(email);
+    const normalizedEmail = email.toLowerCase();
+    const storedOTP = EMAIL_OTP_STORE.get(normalizedEmail);
     if (!storedOTP) {
+      console.log(`[AUTH] OTP not found for ${normalizedEmail}. Current store keys:`, Array.from(EMAIL_OTP_STORE.keys()));
       return res.status(400).json({
         error: 'Invalid OTP',
         message: 'OTP not found. Request a new OTP.',
@@ -111,7 +115,7 @@ export const verifyEmailOTP = async (req, res) => {
 
     // Check if OTP expired
     if (Date.now() > storedOTP.expiresAt) {
-      EMAIL_OTP_STORE.delete(email);
+      EMAIL_OTP_STORE.delete(normalizedEmail);
       return res.status(400).json({
         error: 'OTP Expired',
         message: 'OTP has expired. Request a new OTP.',
@@ -120,7 +124,7 @@ export const verifyEmailOTP = async (req, res) => {
 
     // Check attempts
     if (storedOTP.attempts >= 3) {
-      EMAIL_OTP_STORE.delete(email);
+      EMAIL_OTP_STORE.delete(normalizedEmail);
       return res.status(400).json({
         error: 'Too Many Attempts',
         message: 'Maximum attempts exceeded. Request a new OTP.',
@@ -157,8 +161,11 @@ export const verifyEmailOTP = async (req, res) => {
       createdAt: new Date(),
     };
 
+    // Save to database
+    db.addUser(user);
+
     // Clean up OTP
-    EMAIL_OTP_STORE.delete(email);
+    EMAIL_OTP_STORE.delete(normalizedEmail);
 
     // Create JWT
     const token = authUtils.createJWT({
@@ -222,6 +229,15 @@ export const signupEmail = async (req, res) => {
       });
     }
 
+    // Check if user already exists
+    const existingUser = db.findUserByEmail(email);
+    if (existingUser) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Email already registered',
+      });
+    }
+
     const wallet = authUtils.generateWallet();
     const passwordHash = authUtils.hashPassword(password);
 
@@ -237,6 +253,9 @@ export const signupEmail = async (req, res) => {
       profile: { name: name || null, avatar: null, phone: null },
       createdAt: new Date(),
     };
+
+    // Save to database
+    db.addUser(user);
 
     const token = authUtils.createJWT({
       id: user.id,
@@ -280,16 +299,22 @@ export const loginEmail = async (req, res) => {
       });
     }
 
-    // TODO: Verify user in DB, check password
-    // For now, mock auth
-    const user = {
-      id: `user_${Date.now()}`,
-      email,
-      walletAddress: `0x${Math.random().toString(16).substr(2, 40)}`,
-      auth_method: 'email',
-      role: 'user',
-      createdAt: new Date(),
-    };
+    // Verify user in DB
+    const user = db.findUserByEmail(email);
+    if (!user) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Invalid email or password',
+      });
+    }
+
+    // Check password
+    if (!authUtils.comparePassword(password, user.passwordHash)) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Invalid email or password',
+      });
+    }
 
     const token = authUtils.createJWT({
       id: user.id,
@@ -340,30 +365,45 @@ export const signupGoogle = async (req, res) => {
     // const decodedToken = await admin.auth().verifyIdToken(idToken);
     // const { email, name } = decodedToken;
 
-    const email = 'user@google.com'; // Mock
-    const name = 'Google User'; // Mock
+    // For now, extract email from idToken payload if possible, or fallback
+    let email = 'user@google.com'; 
+    let name = 'Google User'; 
+    try {
+      if (idToken) {
+        const payload = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64').toString());
+        if (payload.email) email = payload.email;
+        if (payload.name) name = payload.name;
+      }
+    } catch(e) {}
 
-    // Check if user exists, create if not
-    const wallet = authUtils.generateWallet();
+    // Check if user exists
+    let user = db.findUserByEmail(email);
+    let wallet;
 
-    const user = {
-      id: `user_${Date.now()}`,
-      email,
-      walletAddress: wallet.address,
-      publicAddress: wallet.address,
-      auth_method: 'google',
-      role: 'user',
-      profile: {
-        name,
-        avatar: null,
-        phone: null,
-      },
-      oauth: {
-        googleId: googleToken || idToken,
-        googleEmail: email,
-      },
-      createdAt: new Date(),
-    };
+    if (!user) {
+      wallet = authUtils.generateWallet();
+      user = {
+        id: `user_${Date.now()}`,
+        email,
+        walletAddress: wallet.address,
+        publicAddress: wallet.address,
+        auth_method: 'google',
+        role: 'user',
+        profile: {
+          name,
+          avatar: null,
+          phone: null,
+        },
+        oauth: {
+          googleId: googleToken || idToken,
+          googleEmail: email,
+        },
+        createdAt: new Date(),
+      };
+      db.addUser(user);
+    } else {
+      wallet = { address: user.walletAddress };
+    }
 
     const token = authUtils.createJWT({
       id: user.id,
@@ -405,16 +445,21 @@ export const loginGoogle = async (req, res) => {
     }
 
     // TODO: Verify token with Google / Firebase
-    const email = 'user@google.com'; // Mock
+    let email = 'user@google.com'; // Mock
+    try {
+      if (idToken) {
+        const payload = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64').toString());
+        if (payload.email) email = payload.email;
+      }
+    } catch(e) {}
 
-    const user = {
-      id: `user_${Date.now()}`,
-      email,
-      walletAddress: `0x${Math.random().toString(16).substr(2, 40)}`,
-      auth_method: 'google',
-      role: 'user',
-      createdAt: new Date(),
-    };
+    const user = db.findUserByEmail(email);
+    if (!user) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Google account not registered. Please sign up first.',
+      });
+    }
 
     const token = authUtils.createJWT({
       id: user.id,
@@ -462,33 +507,32 @@ export const signupMetamask = async (req, res) => {
       });
     }
 
-    // Verify signature (optional, for security)
-    // const isValid = authUtils.verifyEthereumSignature(message, signature, address);
-    // if (!isValid) return res.status(401).json({ error: 'Invalid signature' });
+    // Verify signature
+    const isValid = authUtils.verifyEthereumSignature(message, signature, address);
+    if (!isValid) return res.status(401).json({ error: 'Unauthorized', message: 'Invalid signature' });
 
-    // Use MetaMask wallet as user's wallet address
-    const wallet = {
-      address: address.toLowerCase(),
-      privateKey: null, // No private key for MetaMask (user owns it)
-    };
+    let user = db.findUserByWallet(address);
 
-    const user = {
-      id: `user_${Date.now()}`,
-      email: null,
-      walletAddress: wallet.address,
-      publicAddress: wallet.address,
-      auth_method: 'metamask',
-      role: 'user',
-      profile: {
-        name: null,
-        avatar: null,
-        phone: null,
-      },
-      oauth: {
-        metamaskAddress: address.toLowerCase(),
-      },
-      createdAt: new Date(),
-    };
+    if (!user) {
+      user = {
+        id: `user_${Date.now()}`,
+        email: null,
+        walletAddress: address.toLowerCase(),
+        publicAddress: address.toLowerCase(),
+        auth_method: 'metamask',
+        role: 'user',
+        profile: {
+          name: null,
+          avatar: null,
+          phone: null,
+        },
+        oauth: {
+          metamaskAddress: address.toLowerCase(),
+        },
+        createdAt: new Date(),
+      };
+      db.addUser(user);
+    }
 
     const token = authUtils.createJWT({
       id: user.id,
@@ -528,16 +572,17 @@ export const loginMetamask = async (req, res) => {
       });
     }
 
-    // TODO: Verify signature in production
-    // const isValid = authUtils.verifyEthereumSignature(message, signature, address);
+    // Verify signature
+    const isValid = authUtils.verifyEthereumSignature(message, signature, address);
+    if (!isValid) return res.status(401).json({ error: 'Unauthorized', message: 'Invalid signature' });
 
-    const user = {
-      id: `user_${Date.now()}`,
-      walletAddress: address.toLowerCase(),
-      auth_method: 'metamask',
-      role: 'user',
-      createdAt: new Date(),
-    };
+    const user = db.findUserByWallet(address);
+    if (!user) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Wallet address not registered. Please sign up first.',
+      });
+    }
 
     const token = authUtils.createJWT({
       id: user.id,
@@ -559,6 +604,121 @@ export const loginMetamask = async (req, res) => {
       error: 'Internal Server Error',
       message: error.message,
     });
+  }
+};
+
+/**
+ * ===========================
+ * FORGOT PASSWORD FLOW
+ * ===========================
+ */
+
+/**
+ * POST /auth/forgot-password/send-otp
+ */
+export const sendForgotPasswordOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Bad Request', message: 'Email is required' });
+    }
+
+    // Check if user exists
+    const user = db.findUserByEmail(email);
+    if (!user) {
+      return res.status(404).json({ error: 'Not Found', message: 'Account not found' });
+    }
+
+    // Generate OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1000;
+
+    const normalizedEmail = email.toLowerCase();
+    RESET_PASSWORD_OTP_STORE.set(normalizedEmail, { otp, expiresAt, attempts: 0 });
+
+    console.log(`[AUTH] Password Reset OTP sent to ${email}: ${otp}`);
+
+    try {
+      const { sendPasswordResetOTPEmail } = await import('../utils/email.js');
+      await sendPasswordResetOTPEmail(email, otp);
+    } catch (emailError) {
+      console.error('Warning: Failed to send reset email:', emailError.message);
+    }
+
+    res.json({ success: true, message: 'Reset code sent to email' });
+  } catch (error) {
+    console.error('[AUTH/FORGOT-PASSWORD-SEND]', error);
+    res.status(500).json({ error: 'Internal Server Error', message: error.message });
+  }
+};
+
+/**
+ * POST /auth/forgot-password/verify-otp
+ */
+export const verifyForgotPasswordOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+      return res.status(400).json({ error: 'Bad Request', message: 'Email and OTP are required' });
+    }
+
+    const normalizedEmail = email.toLowerCase();
+    const storedOTP = RESET_PASSWORD_OTP_STORE.get(normalizedEmail);
+
+    if (!storedOTP) {
+      return res.status(400).json({ error: 'Invalid OTP', message: 'Reset code not found. Request a new one.' });
+    }
+
+    if (Date.now() > storedOTP.expiresAt) {
+      RESET_PASSWORD_OTP_STORE.delete(normalizedEmail);
+      return res.status(400).json({ error: 'Expired OTP', message: 'Reset code expired' });
+    }
+
+    if (storedOTP.otp !== otp) {
+      storedOTP.attempts++;
+      if (storedOTP.attempts >= 3) RESET_PASSWORD_OTP_STORE.delete(normalizedEmail);
+      return res.status(400).json({ error: 'Invalid OTP', message: 'Incorrect reset code' });
+    }
+
+    res.json({ success: true, message: 'OTP verified' });
+  } catch (error) {
+    console.error('[AUTH/FORGOT-PASSWORD-VERIFY]', error);
+    res.status(500).json({ error: 'Internal Server Error', message: error.message });
+  }
+};
+
+/**
+ * POST /auth/forgot-password/reset
+ */
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ error: 'Bad Request', message: 'All fields are required' });
+    }
+
+    const normalizedEmail = email.toLowerCase();
+    const storedOTP = RESET_PASSWORD_OTP_STORE.get(normalizedEmail);
+
+    if (!storedOTP || storedOTP.otp !== otp) {
+      return res.status(401).json({ error: 'Unauthorized', message: 'Invalid or expired session' });
+    }
+
+    const user = db.findUserByEmail(normalizedEmail);
+    if (!user) return res.status(404).json({ error: 'Not Found', message: 'User not found' });
+
+    // Update password
+    const passwordHash = authUtils.hashPassword(newPassword);
+    db.updateUser(user.id, { passwordHash });
+
+    // Clear OTP
+    RESET_PASSWORD_OTP_STORE.delete(normalizedEmail);
+
+    res.json({ success: true, message: 'Password updated successfully. You can now log in.' });
+  } catch (error) {
+    console.error('[AUTH/FORGOT-PASSWORD-RESET]', error);
+    res.status(500).json({ error: 'Internal Server Error', message: error.message });
   }
 };
 
@@ -850,6 +1010,8 @@ export const updateProfile = async (req, res) => {
 
 export default {
   // Email auth
+  sendEmailOTP,
+  verifyEmailOTP,
   signupEmail,
   loginEmail,
   // Google auth
@@ -867,4 +1029,8 @@ export default {
   logout,
   refreshToken,
   getProfile,
+  updateProfile,
+  sendForgotPasswordOTP,
+  verifyForgotPasswordOTP,
+  resetPassword,
 };

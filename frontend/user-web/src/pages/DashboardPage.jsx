@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import AadhaarModal from '../components/AadhaarModal';
 import PaymentModal from '../components/PaymentModal';
+import toast from 'react-hot-toast';
 
 const API_BASE = 'http://localhost:5000/api/v1';
 
@@ -195,7 +196,7 @@ const DashboardPage = () => {
   };
 
   const handlePaymentSuccess = (paymentData) => {
-    alert(`✅ Ticket Purchase Successful!\n\nOrder ID: ${paymentData.orderId}\nTicket NFT: ${paymentData.tokenId || 'Minting...'}\n\nYour ticket will appear in "My Tickets" shortly.`);
+    toast.success('Ticket Purchase Successful!');
     setShowPaymentModal(false);
     setSelectedEvent(null);
     setBookingFlow({

@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import Loader from '../components/Loader';
+import { signInWithPopup } from 'firebase/auth';
+import { auth, googleProvider } from '../utils/firebase';
+import toast from 'react-hot-toast';
 
 const API_BASE = 'http://localhost:5000/api/v1';
 
@@ -28,8 +31,10 @@ const AuthPage = () => {
   const { login, setAuthError, error } = useAuth();
   const [activeTab, setActiveTab] = useState('email');
   const [isSignup, setIsSignup] = useState(false);
-  const [form, setForm] = useState({ email: '', password: '', name: '', otp: '' });
+  const [form, setForm] = useState({ email: '', password: '', name: '', otp: '', newPassword: '' });
   const [otpSent, setOtpSent] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [forgotStep, setForgotStep] = useState(0); // 0: email, 1: otp + new password
   const [loading, setLoading] = useState(false);
 
   // ─── OTP Step (Sign Up flow) ──────────────────────────────────────────────
@@ -45,9 +50,8 @@ const AuthPage = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || data.error || 'Failed to send OTP');
       setOtpSent(true);
-      setAuthError(null);
     } catch (err) {
-      setAuthError(err.message);
+      toast.error(err.message);
     } finally {
       setLoading(false);
     }
@@ -70,8 +74,9 @@ const AuthPage = () => {
       if (!response.ok) throw new Error(data.message || data.error || 'OTP verification failed');
       // walletAddress comes back top-level from the backend
       login(data.user, data.token, data.walletAddress || data.user?.walletAddress);
+      toast.success('Account created successfully!');
     } catch (err) {
-      setAuthError(err.message);
+      toast.error(err.message);
     } finally {
       setLoading(false);
     }
@@ -90,8 +95,9 @@ const AuthPage = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || data.error || 'Login failed');
       login(data.user, data.token, data.walletAddress || data.user?.walletAddress);
+      toast.success('Signed in successfully!');
     } catch (err) {
-      setAuthError(err.message);
+      toast.error(err.message);
     } finally {
       setLoading(false);
     }
@@ -102,18 +108,25 @@ const AuthPage = () => {
   const handleGoogleAuth = async () => {
     setLoading(true);
     try {
+      if (!auth || !googleProvider) {
+        throw new Error('Firebase Auth not configured. Please set up Firebase to use Google Login.');
+      }
+      
+      const result = await signInWithPopup(auth, googleProvider);
+      const idToken = await result.user.getIdToken();
+      
       const endpoint = isSignup ? '/auth/signup/google' : '/auth/login/google';
-      // Mock Google token (replace with actual Firebase Auth in production)
       const response = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ googleToken: 'mock_google_token_' + Date.now() }),
+        body: JSON.stringify({ idToken }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || data.error || 'Google auth failed');
       login(data.user, data.token, data.walletAddress || data.user?.walletAddress);
+      toast.success('Google authentication successful!');
     } catch (err) {
-      setAuthError(err.message);
+      toast.error(err.message);
     } finally {
       setLoading(false);
     }
@@ -134,16 +147,69 @@ const AuthPage = () => {
       const address = accounts[0];
       const endpoint = isSignup ? '/auth/signup/metamask' : '/auth/login/metamask';
 
+      // Request actual signature from user
+      const message = 'Sign this message to prove you own this wallet for BlockMyShow Login: ' + Date.now();
+      const signature = await window.ethereum.request({
+        method: 'personal_sign',
+        params: [message, address],
+      });
+
       const response = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address, signature: 'mock_sig', message: 'BlockMyShow Login' }),
+        body: JSON.stringify({ address, signature, message }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || data.error || 'MetaMask auth failed');
       login(data.user, data.token, data.walletAddress || address);
+      toast.success('Wallet connected!');
     } catch (err) {
-      setAuthError(err.message);
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── Forgot Password ──────────────────────────────────────────────────────
+
+  const handleForgotPasswordOTP = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/auth/forgot-password/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || data.error || 'Failed to send reset code');
+      setForgotStep(1);
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/auth/forgot-password/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: form.email,
+          otp: form.otp,
+          newPassword: form.newPassword,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || data.error || 'Reset failed');
+      toast.success('Password updated! Please sign in.');
+      setIsForgotPassword(false);
+      setForgotStep(0);
+      setForm({ ...form, password: '', otp: '', newPassword: '' });
+    } catch (err) {
+      toast.error(err.message);
     } finally {
       setLoading(false);
     }
@@ -153,8 +219,10 @@ const AuthPage = () => {
 
   const switchMode = (signup) => {
     setIsSignup(signup);
+    setIsForgotPassword(false);
+    setForgotStep(0);
     setOtpSent(false);
-    setForm({ email: '', password: '', name: '', otp: '' });
+    setForm({ email: '', password: '', name: '', otp: '', newPassword: '' });
     setAuthError(null);
   };
 
@@ -165,7 +233,8 @@ const AuthPage = () => {
       display: 'grid',
       gridTemplateColumns: '1fr 1fr',
       minHeight: '100vh',
-      background: '#fafafa'
+      background: 'var(--bg)',
+      color: 'var(--text)'
     }}>
       {/* Full-screen loader overlay */}
       {loading && <Loader fullScreen text={otpSent ? 'Verifying OTP...' : 'Authenticating...'} />}
@@ -178,7 +247,7 @@ const AuthPage = () => {
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
-        borderRight: '3px solid #000'
+        borderRight: '3px solid var(--border)'
       }}>
         <div>
           <h1 style={{ fontSize: '3rem', fontFamily: 'Syne, sans-serif', lineHeight: 1, marginBottom: '2rem' }}>
@@ -215,10 +284,13 @@ const AuthPage = () => {
             <button
               onClick={() => switchMode(false)}
               style={{
-                flex: 1, padding: '10px', border: !isSignup ? '2px solid #000' : '2px solid #ccc',
-                background: !isSignup ? '#000' : '#fff', color: !isSignup ? '#fff' : '#000',
+                flex: 1, padding: '10px', 
+                border: !isSignup ? '2px solid var(--border)' : '2px solid var(--border)',
+                background: !isSignup ? 'var(--text)' : 'var(--bg)', 
+                color: !isSignup ? 'var(--bg)' : 'var(--text)',
                 cursor: 'pointer', fontFamily: 'monospace', fontSize: '12px', fontWeight: 'bold',
-                borderRadius: '4px', transition: 'all 0.2s'
+                borderRadius: '4px', transition: 'all 0.2s',
+                opacity: !isSignup ? 1 : 0.6
               }}
             >
               Sign In
@@ -226,38 +298,34 @@ const AuthPage = () => {
             <button
               onClick={() => switchMode(true)}
               style={{
-                flex: 1, padding: '10px', border: isSignup ? '2px solid #000' : '2px solid #ccc',
-                background: isSignup ? '#000' : '#fff', color: isSignup ? '#fff' : '#000',
+                flex: 1, padding: '10px', 
+                border: isSignup ? '2px solid var(--border)' : '2px solid var(--border)',
+                background: isSignup ? 'var(--text)' : 'var(--bg)', 
+                color: isSignup ? 'var(--bg)' : 'var(--text)',
                 cursor: 'pointer', fontFamily: 'monospace', fontSize: '12px', fontWeight: 'bold',
-                borderRadius: '4px', transition: 'all 0.2s'
+                borderRadius: '4px', transition: 'all 0.2s',
+                opacity: isSignup ? 1 : 0.6
               }}
             >
               Sign Up
             </button>
           </div>
 
-          {/* Error Banner */}
-          {error && (
-            <div style={{
-              background: '#fee2e2', color: '#dc2626', padding: '12px',
-              marginBottom: '1rem', fontSize: '12px', border: '2px solid #dc2626',
-              borderRadius: '4px'
-            }}>
-              {error}
-            </div>
-          )}
+
+
+          {/* Sign Up / Sign In toggle */}
 
           {/* Auth Method Tabs */}
           <div style={{ display: 'flex', gap: '8px', marginBottom: '1.5rem' }}>
             {['email', 'google', 'metamask'].map(tab => (
               <button
                 key={tab}
-                onClick={() => { setActiveTab(tab); setOtpSent(false); setAuthError(null); }}
+                onClick={() => { setActiveTab(tab); setOtpSent(false); toast.dismiss(); }}
                 style={{
                   flex: 1, padding: '10px 8px',
-                  border: activeTab === tab ? '2px solid #31bbaf' : '2px solid #ccc',
-                  background: activeTab === tab ? '#31bbaf' : '#fff',
-                  color: activeTab === tab ? '#fff' : '#000',
+                  border: activeTab === tab ? '2px solid var(--primary)' : '2px solid var(--border)',
+                  background: activeTab === tab ? 'var(--primary)' : 'var(--surface)',
+                  color: activeTab === tab ? '#000' : 'var(--text)',
                   cursor: 'pointer', fontFamily: 'monospace', fontSize: '11px',
                   fontWeight: 'bold', borderRadius: '4px', transition: 'all 0.2s'
                 }}
@@ -270,69 +338,107 @@ const AuthPage = () => {
           {/* ── EMAIL TAB ── */}
           {activeTab === 'email' && (
             <div>
-              {/* Sign Up via OTP */}
-              {isSignup ? (
-                otpSent ? (
-                  /* Step 2: Enter OTP */
+              {/* Forgot Password Flow */}
+              {isForgotPassword ? (
+                forgotStep === 0 ? (
                   <>
-                    <p style={{ fontSize: '12px', color: '#555', marginBottom: '12px' }}>
-                      OTP sent to <strong>{form.email}</strong>. Check your inbox.
-                    </p>
-                    <input
-                      type="text"
-                      placeholder="Enter 6-digit OTP"
-                      maxLength={6}
-                      value={form.otp}
-                      onChange={e => setForm({ ...form, otp: e.target.value })}
-                      style={inputStyle}
-                    />
-                    <button
-                      onClick={handleVerifyOTP}
-                      disabled={loading || form.otp.length !== 6}
-                      style={btnStyle(loading || form.otp.length !== 6)}
-                    >
-                      {loading ? 'Verifying...' : 'Verify OTP & Create Account'}
+                    <h3 style={{ fontSize: '14px', marginBottom: '12px', textTransform: 'uppercase' }}>Reset Password</h3>
+                    <p style={{ fontSize: '12px', color: '#666', marginBottom: '16px' }}>Enter your email to receive a password reset code.</p>
+                    <input type="email" placeholder="e.g., user@example.com" value={form.email}
+                      onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} />
+                    <button onClick={handleForgotPasswordOTP} disabled={loading || !form.email} style={btnStyle(loading || !form.email)}>
+                      {loading ? 'Sending Code...' : 'Send Reset Code'}
                     </button>
-                    <button
-                      onClick={() => setOtpSent(false)}
-                      style={{ ...btnStyle(false), background: '#fff', color: '#000', border: '2px solid #ccc', marginTop: '8px' }}
-                    >
-                      ← Back
+                    <button onClick={() => setIsForgotPassword(false)} style={{ ...btnStyle(false), background: 'var(--bg)', color: 'var(--text)', border: '2px solid var(--border)', marginTop: '8px' }}>
+                      Back to Login
                     </button>
                   </>
                 ) : (
-                  /* Step 1: Enter details + Send OTP */
                   <>
-                    <input type="text" placeholder="Full name (optional)" value={form.name}
-                      onChange={e => setForm({ ...form, name: e.target.value })} style={inputStyle} />
-                    <input type="email" placeholder="Email address" value={form.email}
-                      onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} />
-                    <input type="password" placeholder="Password" value={form.password}
-                      onChange={e => setForm({ ...form, password: e.target.value })} style={inputStyle} />
-                    <button
-                      onClick={handleSendOTP}
-                      disabled={loading || !form.email || !form.password}
-                      style={btnStyle(loading || !form.email || !form.password)}
-                    >
-                      {loading ? 'Sending OTP...' : 'Send OTP to Email'}
+                    <h3 style={{ fontSize: '14px', marginBottom: '12px', textTransform: 'uppercase' }}>Verify & Reset</h3>
+                    <p style={{ fontSize: '12px', color: '#666', marginBottom: '16px' }}>Reset code sent to {form.email}</p>
+                    <input type="text" placeholder="Enter 6-digit code" maxLength={6} value={form.otp}
+                      onChange={e => setForm({ ...form, otp: e.target.value })} style={inputStyle} />
+                    <input type="password" placeholder="Min. 8 characters" value={form.newPassword}
+                      onChange={e => setForm({ ...form, newPassword: e.target.value })} style={inputStyle} />
+                    <button onClick={handleResetPassword} disabled={loading || !form.otp || !form.newPassword} style={btnStyle(loading || !form.otp || !form.newPassword)}>
+                      {loading ? 'Resetting...' : 'Update Password'}
+                    </button>
+                    <button onClick={() => setForgotStep(0)} style={{ ...btnStyle(false), background: 'var(--bg)', color: 'var(--text)', border: '2px solid var(--border)', marginTop: '8px' }}>
+                      Change Email
                     </button>
                   </>
                 )
               ) : (
-                /* Sign In with email + password */
-                <>
-                  <input type="email" placeholder="Email address" value={form.email}
-                    onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} />
-                  <input type="password" placeholder="Password" value={form.password}
-                    onChange={e => setForm({ ...form, password: e.target.value })} style={inputStyle} />
-                  <button
-                    onClick={handleEmailLogin}
-                    disabled={loading || !form.email || !form.password}
-                    style={btnStyle(loading || !form.email || !form.password)}
-                  >
-                    {loading ? 'Signing In...' : 'Sign In'}
-                  </button>
-                </>
+                /* Sign In / Sign Up Flow */
+                isSignup ? (
+                  otpSent ? (
+                    /* Step 2: Enter OTP */
+                    <>
+                      <p style={{ fontSize: '12px', color: '#555', marginBottom: '12px' }}>
+                        OTP sent to <strong>{form.email}</strong>. Check your inbox.
+                      </p>
+                      <input
+                        type="text"
+                        placeholder="Enter 6-digit OTP"
+                        maxLength={6}
+                        value={form.otp}
+                        onChange={e => setForm({ ...form, otp: e.target.value })}
+                        style={inputStyle}
+                      />
+                      <button
+                        onClick={handleVerifyOTP}
+                        disabled={loading || form.otp.length !== 6}
+                        style={btnStyle(loading || form.otp.length !== 6)}
+                      >
+                        {loading ? 'Verifying...' : 'Verify OTP & Create Account'}
+                      </button>
+                      <button
+                        onClick={() => setOtpSent(false)}
+                        style={{ ...btnStyle(false), background: 'var(--bg)', color: 'var(--text)', border: '2px solid var(--border)', marginTop: '8px' }}
+                      >
+                        ← Back
+                      </button>
+                    </>
+                  ) : (
+                    /* Step 1: Enter details + Send OTP */
+                    <>
+                      <input type="text" placeholder="Your Full Name" value={form.name}
+                        onChange={e => setForm({ ...form, name: e.target.value })} style={inputStyle} />
+                      <input type="email" placeholder="name@example.com" value={form.email}
+                        onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} />
+                      <input type="password" placeholder="Choose a strong password" value={form.password}
+                        onChange={e => setForm({ ...form, password: e.target.value })} style={inputStyle} />
+                      <button
+                        onClick={handleSendOTP}
+                        disabled={loading || !form.email || !form.password}
+                        style={btnStyle(loading || !form.email || !form.password)}
+                      >
+                        {loading ? 'Sending OTP...' : 'Send OTP to Email'}
+                      </button>
+                    </>
+                  )
+                ) : (
+                  /* Sign In with email + password */
+                  <>
+                    <input type="email" placeholder="Enter your email" value={form.email}
+                      onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} />
+                    <input type="password" placeholder="Enter your password" value={form.password}
+                      onChange={e => setForm({ ...form, password: e.target.value })} style={inputStyle} />
+                    <div style={{ textAlign: 'right', marginBottom: '12px' }}>
+                      <button onClick={() => setIsForgotPassword(true)} style={{ background: 'none', border: 'none', color: '#31bbaf', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline' }}>
+                        Forgot Password?
+                      </button>
+                    </div>
+                    <button
+                      onClick={handleEmailLogin}
+                      disabled={loading || !form.email || !form.password}
+                      style={btnStyle(loading || !form.email || !form.password)}
+                    >
+                      {loading ? 'Signing In...' : 'Sign In'}
+                    </button>
+                  </>
+                )
               )}
             </div>
           )}
@@ -385,19 +491,22 @@ const inputStyle = {
   width: '100%',
   padding: '12px',
   marginBottom: '12px',
-  border: '2px solid #ddd',
+  border: '2px solid var(--border)',
+  background: 'var(--input-bg)',
+  color: 'var(--text)',
   borderRadius: '4px',
   fontFamily: 'monospace',
   fontSize: '14px',
   boxSizing: 'border-box',
+  outline: 'none',
 };
 
 const btnStyle = (disabled) => ({
   width: '100%',
   padding: '12px',
-  background: disabled ? '#ccc' : '#000',
-  color: '#fff',
-  border: '2px solid #000',
+  background: disabled ? 'var(--muted)' : 'var(--primary)',
+  color: '#000',
+  border: '2px solid var(--border)',
   cursor: disabled ? 'not-allowed' : 'pointer',
   fontFamily: 'monospace',
   marginBottom: '8px',

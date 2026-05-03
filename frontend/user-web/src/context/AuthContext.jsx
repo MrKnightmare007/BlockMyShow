@@ -53,6 +53,10 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_user');
     localStorage.removeItem('wallet_address');
+    
+    import('react-hot-toast').then(({ default: toast }) => {
+      toast.success('Successfully logged out');
+    });
   };
 
   const setAuthError = (errorMessage) => {

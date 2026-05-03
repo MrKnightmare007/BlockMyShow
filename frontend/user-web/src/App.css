@@ -36,8 +36,17 @@ button:active:not(:disabled) {
 /* Input Focus Styles */
 input:focus {
   outline: none;
-  border-color: #4a90e2 !important;
-  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+  border-color: #31bbaf !important;
+  box-shadow: 0 0 0 3px rgba(49, 187, 175, 0.1);
+}
+
+::placeholder {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+input {
+  color: var(--text);
 }
 
 /* Custom Scrollbar */

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 // Inline Icons for Web3 aesthetic
 const Icon = {
@@ -49,13 +50,13 @@ const ProfileDetailsTab = ({ user, walletAddress, token, login }) => {
       if (data.success) {
         // Update context user object
         login(data.user, token, walletAddress);
-        alert('Profile updated successfully!');
+        toast.success('Profile updated successfully!');
       } else {
-        alert(data.message || 'Failed to update profile');
+        toast.error(data.message || 'Failed to update profile');
       }
     } catch (err) {
       console.error(err);
-      alert('Network error while saving profile');
+      toast.error('Network error while saving profile');
     } finally {
       setIsSaving(false);
     }

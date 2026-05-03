@@ -1,0 +1,98 @@
+[
+  {
+    "id": "user_1777825576945",
+    "email": "soumyadipta.das.iotcs26@heritageit.edu.in",
+    "passwordHash": "85f537f56fe87194fde6ad651f46279d01026cae309e57908dac30f4339870bf",
+    "walletAddress": "0x33C5376bAE75c31fE67129a51B3110A43Ac4E075",
+    "publicAddress": "0x33C5376bAE75c31fE67129a51B3110A43Ac4E075",
+    "auth_method": "email",
+    "role": "user",
+    "verified": true,
+    "profile": {
+      "name": "Soumyadipta Das",
+      "avatar": null,
+      "phone": null
+    },
+    "createdAt": "2026-05-03T16:26:16.945Z"
+  },
+  {
+    "id": "user_1777826237533",
+    "email": "soumyadipta.das.iotcs26@heritageit.edu.in",
+    "passwordHash": "85f537f56fe87194fde6ad651f46279d01026cae309e57908dac30f4339870bf",
+    "walletAddress": "0x0A44ab9eE8491C51C8e345efb018160F74fa0989",
+    "publicAddress": "0x0A44ab9eE8491C51C8e345efb018160F74fa0989",
+    "auth_method": "email",
+    "role": "user",
+    "verified": true,
+    "profile": {
+      "name": "Soumyadipta Das",
+      "avatar": null,
+      "phone": null
+    },
+    "createdAt": "2026-05-03T16:37:17.533Z"
+  },
+  {
+    "id": "user_1777826316362",
+    "email": "soumyadipta.das.iotcs26@heritageit.edu.in",
+    "passwordHash": "85f537f56fe87194fde6ad651f46279d01026cae309e57908dac30f4339870bf",
+    "walletAddress": "0x9eA919b0b8560cCa4c1D5aFbedde52898A7BeE89",
+    "publicAddress": "0x9eA919b0b8560cCa4c1D5aFbedde52898A7BeE89",
+    "auth_method": "email",
+    "role": "user",
+    "verified": true,
+    "profile": {
+      "name": "Soumyadipta Das",
+      "avatar": null,
+      "phone": null
+    },
+    "createdAt": "2026-05-03T16:38:36.362Z"
+  },
+  {
+    "id": "user_1777826563983",
+    "email": "soumyadipta.das.iotcs26@heritageit.edu.in",
+    "passwordHash": "85f537f56fe87194fde6ad651f46279d01026cae309e57908dac30f4339870bf",
+    "walletAddress": "0x6F889782C6dA7195B81672e5a1468113AF2d93b2",
+    "publicAddress": "0x6F889782C6dA7195B81672e5a1468113AF2d93b2",
+    "auth_method": "email",
+    "role": "user",
+    "verified": true,
+    "profile": {
+      "name": "Soumyadipta Das",
+      "avatar": null,
+      "phone": null
+    },
+    "createdAt": "2026-05-03T16:42:43.983Z"
+  },
+  {
+    "id": "user_1777826669768",
+    "email": "soumyadipta.das.iotcs26@heritageit.edu.in",
+    "passwordHash": "85f537f56fe87194fde6ad651f46279d01026cae309e57908dac30f4339870bf",
+    "walletAddress": "0x28bD3Cb2B9c590d31a268BBB1Ed59DB1EE7e634e",
+    "publicAddress": "0x28bD3Cb2B9c590d31a268BBB1Ed59DB1EE7e634e",
+    "auth_method": "email",
+    "role": "user",
+    "verified": true,
+    "profile": {
+      "name": "Soumyadipta Das",
+      "avatar": null,
+      "phone": null
+    },
+    "createdAt": "2026-05-03T16:44:29.768Z"
+  },
+  {
+    "id": "user_1777826733474",
+    "email": "soumyadipta.das.iotcs26@heritageit.edu.in",
+    "passwordHash": "85f537f56fe87194fde6ad651f46279d01026cae309e57908dac30f4339870bf",
+    "walletAddress": "0xc3C96616c92d9753A4D637F095A758cF0c53d006",
+    "publicAddress": "0xc3C96616c92d9753A4D637F095A758cF0c53d006",
+    "auth_method": "email",
+    "role": "user",
+    "verified": true,
+    "profile": {
+      "name": "Soumyadipta Das",
+      "avatar": null,
+      "phone": null
+    },
+    "createdAt": "2026-05-03T16:45:33.474Z"
+  }
+]

@@ -79,12 +79,47 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+import { Toaster } from 'react-hot-toast';
+
 export default function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
           <Router>
+            <Toaster 
+              position="top-right"
+              toastOptions={{
+                style: {
+                  background: '#000',
+                  color: '#fff',
+                  borderRadius: '4px',
+                  border: '2px solid #31bbaf',
+                  fontFamily: 'Space Mono, monospace',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  boxShadow: '4px 4px 0px #000',
+                },
+                success: {
+                  style: {
+                    border: '2px solid #31bbaf',
+                  },
+                  iconTheme: {
+                    primary: '#31bbaf',
+                    secondary: '#000',
+                  },
+                },
+                error: {
+                  style: {
+                    border: '2px solid #ef4444',
+                  },
+                  iconTheme: {
+                    primary: '#ef4444',
+                    secondary: '#000',
+                  },
+                },
+              }}
+            />
             <AppContent />
           </Router>
         </AuthProvider>

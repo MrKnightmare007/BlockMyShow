@@ -103,10 +103,7 @@ export const generateOTP = () => {
  */
 export const verifyEthereumSignature = (message, signature, address) => {
   try {
-    const recoveredAddress = ethers.utils.recoverAddress(
-      ethers.utils.hashMessage(message),
-      signature
-    );
+    const recoveredAddress = ethers.verifyMessage(message, signature);
     return recoveredAddress.toLowerCase() === address.toLowerCase();
   } catch (error) {
     console.error('Signature verification failed:', error);

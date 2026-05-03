@@ -164,6 +164,14 @@ router.post('/admin-login', authController.adminLogin);
 router.post('/logout', authenticateToken, authController.logout);
 
 /**
+ * ========================
+ * FORGOT PASSWORD
+ * ========================
+ */
+router.post('/forgot-password/send-otp', authController.sendForgotPasswordOTP);
+router.post('/forgot-password/reset', authController.resetPassword);
+
+/**
  * POST /auth/refresh-token
  * Refresh JWT token
  * 

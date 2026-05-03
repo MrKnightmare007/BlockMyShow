@@ -192,11 +192,56 @@ export const sendTicketConfirmationEmail = async (email, ticketData) => {
 };
 
 /**
- * Send password reset email
+ * Send password reset OTP email
  */
-export const sendPasswordResetEmail = async (email, resetLink) => {
-  // Can be implemented similarly
-  return { success: true };
+export const sendPasswordResetOTPEmail = async (email, otp) => {
+  try {
+    const mailer = getTransporter();
+    if (!mailer) return { success: false };
+
+    const htmlContent = `
+      <div style="background-color: #050505; color: #ffffff; font-family: 'Courier New', Courier, monospace; max-width: 600px; margin: 0 auto; border-radius: 16px; overflow: hidden; border: 1px solid #1a1a1a;">
+        <div style="background-color: #000; text-align: center; padding: 40px 0;">
+          <img src="https://media.tenor.com/Z4wD-xXk0kQAAAAC/bitcoin-crypto.gif" alt="Bitcoin" style="width: 80px; height: 80px; margin: 0 auto; display: block; border-radius: 50%;" />
+          <h1 style="color: #ef4444; font-size: 28px; margin: 15px 0 5px 0; text-transform: uppercase; letter-spacing: 4px; display: block;">BlockMyShow</h1>
+          <p style="color: #888; font-size: 11px; margin: 0; letter-spacing: 2px; display: block;">SECURITY CENTER</p>
+        </div>
+        
+        <div style="padding: 40px 30px; text-align: center;">
+          <h2 style="color: #fff; font-size: 22px; margin-top: 0; text-transform: uppercase;">Password Reset Request</h2>
+          <p style="color: #a3a3a3; font-size: 14px; line-height: 1.6; max-width: 400px; margin: 0 auto;">
+            We received a request to reset your password. Use the following security code to proceed.
+          </p>
+          
+          <div style="background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.3); padding: 30px; border-radius: 12px; margin: 30px auto; max-width: 300px; position: relative; overflow: hidden;">
+            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, #ef4444, transparent);"></div>
+            <p style="color: #ef4444; text-transform: uppercase; font-size: 11px; font-weight: bold; letter-spacing: 3px; margin: 0 0 15px 0;">Reset Code</p>
+            <h1 style="color: #ffffff; letter-spacing: 12px; margin: 0; font-size: 42px; text-shadow: 0 0 15px rgba(239,68,68,0.4);">${otp}</h1>
+          </div>
+
+          <div style="border-top: 1px solid #1a1a1a; padding-top: 25px;">
+            <p style="font-size: 11px; color: #555; margin: 0;">
+              This code will expire in 10 minutes.<br>
+              If you didn't request a password reset, please ignore this email or contact support.
+            </p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const result = await mailer.sendMail({
+      from: EMAIL_FROM,
+      to: email,
+      subject: 'BlockMyShow: Password Reset Code 🔐',
+      html: htmlContent,
+    });
+    
+    console.log('✓ Password reset OTP sent to', email);
+    return { success: true, messageId: result.messageId };
+  } catch (error) {
+    console.error('❌ Email reset send error:', error.message);
+    throw new Error('Failed to send password reset email');
+  }
 };
 
 /**
