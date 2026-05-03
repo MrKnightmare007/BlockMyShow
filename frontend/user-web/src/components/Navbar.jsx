@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 // Icons
 const Icon = {
@@ -7,6 +8,12 @@ const Icon = {
     <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
       <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
       <polyline points="9 22 9 12 15 12 15 22"/>
+    </svg>
+  ),
+  User: () => (
+    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+      <circle cx="12" cy="7" r="4"/>
     </svg>
   ),
   Ticket: () => (
@@ -21,27 +28,39 @@ const Icon = {
       <line x1="21" y1="12" x2="9" y2="12"/>
     </svg>
   ),
+  Sun: () => (
+    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  ),
+  Moon: () => (
+    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+    </svg>
+  )
 };
 
 const Navbar = () => {
   const { user, walletAddress, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const location = useLocation();
 
   const navItems = [
     { path: '/', label: 'Events', icon: Icon.Home },
     { path: '/tickets', label: 'My Tickets', icon: Icon.Ticket },
+    { path: '/profile', label: 'Profile', icon: Icon.User },
   ];
 
   return (
     <nav style={{ 
-      background: '#000', 
-      color: '#fff', 
+      background: 'var(--surface)', 
+      color: 'var(--text)', 
       padding: '0 2rem', 
-      height: '56px', 
+      height: '60px', 
       display: 'flex', 
       alignItems: 'center', 
       justifyContent: 'space-between',
-      borderBottom: '3px solid #000', 
+      borderBottom: '3px solid var(--border)', 
       position: 'sticky', 
       top: 0, 
       zIndex: 50 
@@ -52,8 +71,11 @@ const Navbar = () => {
         style={{ 
           fontFamily: 'Syne, sans-serif', 
           fontSize: '1.25rem',
-          color: '#fff',
-          textDecoration: 'none'
+          fontWeight: 'bold',
+          color: 'var(--text)',
+          textDecoration: 'none',
+          letterSpacing: '2px',
+          textTransform: 'uppercase'
         }}
       >
         BlockMyShow
@@ -62,7 +84,9 @@ const Navbar = () => {
       {/* Navigation Items */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
         {navItems.map(item => {
+          // Note: profile?tab=tickets will show active for profile if we just use startsWith
           const isActive = location.pathname === item.path;
+          
           return (
             <Link
               key={item.path}
@@ -71,13 +95,15 @@ const Navbar = () => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                color: isActive ? '#4a90e2' : '#fff',
+                color: isActive ? 'var(--primary)' : 'var(--text)',
                 textDecoration: 'none',
                 fontSize: '14px',
                 fontWeight: isActive ? 'bold' : 'normal',
                 padding: '8px 12px',
-                borderRadius: '4px',
-                background: isActive ? 'rgba(74, 144, 226, 0.1)' : 'transparent',
+                border: isActive ? '2px solid var(--border)' : '2px solid transparent',
+                borderRadius: '0px',
+                background: isActive ? 'var(--surface)' : 'transparent',
+                boxShadow: isActive ? '2px 2px 0 var(--border)' : 'none',
                 transition: 'all 0.2s'
               }}
             >
@@ -87,15 +113,22 @@ const Navbar = () => {
           );
         })}
 
-        {/* User Info & Logout */}
+        {/* User Info & Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          
+          <button onClick={toggleTheme} style={{
+            background: 'transparent', border: 'none', color: 'var(--text)', cursor: 'pointer', padding: '8px'
+          }}>
+            {theme === 'dark' ? <Icon.Sun /> : <Icon.Moon />}
+          </button>
+
           <div style={{ 
-            background: 'rgba(255,255,255,0.1)', 
+            border: '2px solid var(--border)', 
             padding: '6px 10px', 
-            borderRadius: '4px', 
+            background: 'var(--input-bg)', 
             fontSize: '11px' 
           }}>
-            <div style={{ opacity: 0.7 }}>Wallet</div>
+            <div style={{ opacity: 0.7, color: 'var(--muted)' }}>Wallet</div>
             <div style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>
               {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
             </div>
@@ -103,26 +136,13 @@ const Navbar = () => {
           
           <button 
             onClick={logout} 
+            className="brutal-btn"
             style={{ 
               display: 'flex', 
               alignItems: 'center', 
               gap: '6px', 
-              padding: '6px 12px', 
-              background: 'rgba(255,255,255,0.1)', 
-              color: '#fff', 
-              border: '1px solid rgba(255,255,255,0.2)', 
-              cursor: 'pointer', 
-              fontFamily: 'monospace', 
+              padding: '8px 12px', 
               fontSize: '11px', 
-              fontWeight: 'bold',
-              borderRadius: '4px',
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={e => {
-              e.target.style.background = 'rgba(255,255,255,0.2)';
-            }}
-            onMouseLeave={e => {
-              e.target.style.background = 'rgba(255,255,255,0.1)';
             }}
           >
             <Icon.LogOut /> 

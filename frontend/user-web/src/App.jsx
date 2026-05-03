@@ -1,7 +1,9 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
+import ProfilePage from './pages/ProfilePage';
 import TicketsPage from './pages/TicketsPage';
 import Navbar from './components/Navbar';
 import Loader from './components/Loader';
@@ -17,12 +19,18 @@ const AppContent = () => {
   }
 
   return (
-    <div style={{ fontFamily: 'Space Mono, monospace' }}>
+    <div style={{ 
+      fontFamily: 'Space Mono, monospace', 
+      minHeight: '100vh', 
+      background: 'var(--bg)', 
+      color: 'var(--text)' 
+    }}>
       {isAuthenticated ? (
         <>
           <Navbar />
           <Routes>
             <Route path="/" element={<DashboardPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
             <Route path="/tickets" element={<TicketsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -74,11 +82,13 @@ class ErrorBoundary extends React.Component {
 export default function App() {
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <Router>
-          <AppContent />
-        </Router>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <Router>
+            <AppContent />
+          </Router>
+        </AuthProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }

@@ -63,12 +63,19 @@ export const sendEmailOTP = async (req, res) => {
       console.error('Warning: Failed to send OTP email:', emailError.message);
     }
 
-    res.json({
+    const responsePayload = {
       success: true,
       email,
       message: 'OTP sent to email',
       expiresIn: 600, // seconds
-    });
+    };
+
+    if (process.env.NODE_ENV !== 'production') {
+      responsePayload.devOtp = otp;
+      console.log(`\n=========================================\n🔑 DEV MODE OTP FOR ${email}: ${otp}\n=========================================\n`);
+    }
+
+    res.json(responsePayload);
   } catch (error) {
     console.error('[AUTH/SEND-EMAIL-OTP]', error);
     res.status(500).json({
@@ -793,11 +800,51 @@ export const getProfile = async (req, res) => {
 
     res.json({
       success: true,
-      user,
+      user: authUtils.sanitizeUserResponse(user),
     });
   } catch (error) {
-    console.error('[AUTH/PROFILE]', error);
-    res.status(500).json({ error: 'Failed to retrieve profile' });
+    console.error('[AUTH/GET-PROFILE]', error);
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+};
+
+/**
+ * PUT /auth/profile
+ * Update authenticated user profile details
+ */
+export const updateProfile = async (req, res) => {
+  try {
+    const { name, phone } = req.body;
+    
+    // In a real implementation, you would look up the user in MongoDB
+    // by req.user.id and apply the updates:
+    // await User.findByIdAndUpdate(req.user.id, { $set: { 'profile.name': name, 'profile.phone': phone } })
+    
+    // Since we are currently using mocked auth responses, we'll return a mocked updated user
+    // However, the Token contains basic info which doesn't change here, just the returned user object
+    
+    const updatedUser = {
+      id: req.user.id,
+      email: req.user.email || null,
+      walletAddress: req.user.walletAddress,
+      role: req.user.role,
+      auth_method: req.user.auth_method,
+      name: name || null,
+      profile: {
+        name: name || null,
+        phone: phone || null,
+        avatar: null
+      }
+    };
+
+    res.json({
+      success: true,
+      user: updatedUser,
+      message: 'Profile updated successfully',
+    });
+  } catch (error) {
+    console.error('[AUTH/UPDATE-PROFILE]', error);
+    res.status(500).json({ error: 'Failed to update profile', message: error.message });
   }
 };
 

@@ -249,45 +249,68 @@ input:focus {
 
 /* Custom Properties for Theming */
 :root {
-  --color-primary: #4a90e2;
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-error: #ef4444;
-  --color-gray-50: #f9fafb;
-  --color-gray-100: #f3f4f6;
-  --color-gray-200: #e5e7eb;
-  --color-gray-300: #d1d5db;
-  --color-gray-400: #9ca3af;
-  --color-gray-500: #6b7280;
-  --color-gray-600: #4b5563;
-  --color-gray-700: #374151;
-  --color-gray-800: #1f2937;
-  --color-gray-900: #111827;
+  /* LIGHT THEME (Brutalist) */
+  --bg: #fafafa;
+  --text: #000000;
+  --surface: #ffffff;
+  --border: #000000;
+  --primary: #31bbaf;
+  --primary-hover: #26998f;
+  --accent: #4a90e2;
+  --muted: #666666;
+  --input-bg: #ffffff;
   
-  --font-mono: 'Space Mono', monospace;
-  --font-display: 'Syne', sans-serif;
-  
-  --border-radius: 8px;
-  --border-radius-lg: 12px;
-  --border-radius-xl: 16px;
-  
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-brutal: 4px 4px 0 #000;
+  --shadow-brutal-hover: 6px 6px 0 #000;
+  --border-radius: 0px; /* Brutalist sharp edges */
 }
 
 /* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-gray-50: #1f2937;
-    --color-gray-100: #374151;
-    --color-gray-200: #4b5563;
-    --color-gray-300: #6b7280;
-    --color-gray-400: #9ca3af;
-    --color-gray-500: #d1d5db;
-    --color-gray-600: #e5e7eb;
-    --color-gray-700: #f3f4f6;
-    --color-gray-800: #f9fafb;
-    --color-gray-900: #ffffff;
-  }
+[data-theme='dark'] {
+  /* DARK THEME (Cyberpunk Brutalist) */
+  --bg: #050505;
+  --text: #ffffff;
+  --surface: #111111;
+  --border: #333333;
+  --primary: #31bbaf;
+  --primary-hover: #4ae0d2;
+  --accent: #4a90e2;
+  --muted: #888888;
+  --input-bg: #1a1a1a;
+  
+  --shadow-brutal: 4px 4px 0 #31bbaf;
+  --shadow-brutal-hover: 6px 6px 0 #31bbaf;
 }
+
+/* Global utility for brutalist shadows */
+.brutal-card {
+  background: var(--surface);
+  border: 3px solid var(--border);
+  box-shadow: var(--shadow-brutal);
+  transition: all 0.2s ease;
+}
+
+.brutal-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: var(--shadow-brutal-hover);
+}
+
+.brutal-btn {
+  background: var(--primary);
+  color: #000;
+  border: 2px solid var(--border);
+  box-shadow: 2px 2px 0 var(--border);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.brutal-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--border);
+}
+
+.brutal-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 0px 0px 0 var(--border);
+}

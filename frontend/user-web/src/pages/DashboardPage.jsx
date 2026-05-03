@@ -206,491 +206,228 @@ const DashboardPage = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#fafafa' }}>
-      {/* Header */}
-      <div style={{ 
-        background: '#fff', 
-        padding: '2rem', 
-        borderBottom: '3px solid #000',
-        position: 'sticky',
-        top: '56px',
-        zIndex: 10
-      }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'flex-start',
-            marginBottom: '1.5rem'
-          }}>
-            <div>
-              <h1 style={{ 
-                fontSize: '2rem', 
-                fontFamily: 'Syne, sans-serif', 
-                marginBottom: '4px' 
-              }}>
-                Discover Events
-              </h1>
-              <p style={{ color: '#666', fontSize: '14px' }}>
-                Browse and book NFT tickets for Web3 events
-              </p>
-            </div>
-            <div style={{ 
-              background: '#f0f0f0', 
-              padding: '12px 16px', 
-              borderRadius: '8px', 
-              fontSize: '12px',
-              textAlign: 'right'
-            }}>
-              <div style={{ color: '#888', marginBottom: '4px' }}>Your Wallet</div>
-              <div style={{ 
-                fontFamily: 'monospace', 
-                fontWeight: 'bold', 
-                color: '#000' 
-              }}>
-                {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
-              </div>
-            </div>
-          </div>
-
-          {/* Search and Filters */}
-          <div style={{ 
-            display: 'flex', 
-            gap: '16px', 
-            alignItems: 'center',
-            flexWrap: 'wrap'
-          }}>
+    <div style={{ minHeight: 'calc(100vh - 60px)', background: 'var(--bg)', padding: '2rem' }}>
+      
+      {/* 2-Column Layout */}
+      <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', gap: '30px', flexDirection: 'row', flexWrap: 'wrap' }}>
+        
+        {/* LEFT SIDEBAR (Filters) */}
+        <div style={{ flex: '1 1 300px', maxWidth: '350px' }}>
+          <div className="brutal-card" style={{ padding: '24px', position: 'sticky', top: '80px' }}>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '24px', marginBottom: '8px', textTransform: 'uppercase' }}>Discover Events</h2>
+            <p style={{ color: 'var(--muted)', fontSize: '12px', marginBottom: '24px' }}>Browse and book NFT tickets for Web3 events</p>
+            
             {/* Search */}
-            <div style={{ position: 'relative', flex: '1', minWidth: '250px' }}>
-              <Icon.Search />
-              <input
-                type="text"
-                placeholder="Search events, venues, or topics..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px 10px 40px',
-                  border: '2px solid #ddd',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  fontFamily: 'monospace'
-                }}
-              />
-              <div style={{
-                position: 'absolute',
-                left: '12px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: '#666'
-              }}>
-                <Icon.Search />
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', textTransform: 'uppercase' }}>Search</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  placeholder="Events, venues, topics..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 12px 12px 40px',
+                    border: '2px solid var(--border)',
+                    background: 'var(--input-bg)',
+                    color: 'var(--text)',
+                    fontSize: '14px',
+                    fontFamily: 'var(--font-mono)',
+                    outline: 'none'
+                  }}
+                  onFocus={e => e.target.style.borderColor = 'var(--primary)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                />
+                <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }}>
+                  <Icon.Search />
+                </div>
               </div>
             </div>
 
             {/* Category Filter */}
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              style={{
-                padding: '10px 12px',
-                border: '2px solid #ddd',
-                borderRadius: '6px',
-                fontSize: '14px',
-                fontFamily: 'monospace',
-                background: '#fff',
-                cursor: 'pointer'
-              }}
-            >
-              {categories.map(category => (
-                <option key={category} value={category}>
-                  {category === 'All' ? 'All Categories' : category}
-                </option>
-              ))}
-            </select>
-
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', textTransform: 'uppercase' }}>Category</label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '2px solid var(--border)',
+                  background: 'var(--input-bg)',
+                  color: 'var(--text)',
+                  fontSize: '14px',
+                  fontFamily: 'var(--font-mono)',
+                  outline: 'none',
+                  cursor: 'pointer'
+                }}
+                onFocus={e => e.target.style.borderColor = 'var(--primary)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'}
+              >
+                {categories.map(category => (
+                  <option key={category} value={category}>
+                    {category === 'All' ? 'All Categories' : category}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
             {/* Results Count */}
-            <div style={{ 
-              fontSize: '12px', 
-              color: '#666',
-              padding: '10px 0'
-            }}>
-              {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''} found
+            <div style={{ padding: '12px', background: 'var(--surface)', border: '2px dashed var(--border)', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>
+              {filteredEvents.length} EVENT{filteredEvents.length !== 1 ? 'S' : ''} FOUND
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Events Grid */}
-      <div style={{ 
-        flex: 1, 
-        padding: '2rem', 
-        maxWidth: '1200px', 
-        margin: '0 auto', 
-        width: '100%' 
-      }}>
-        {filteredEvents.length === 0 ? (
-          <div style={{ 
-            textAlign: 'center', 
-            padding: '4rem 2rem',
-            color: '#666'
-          }}>
-            <Icon.Search />
-            <h3 style={{ marginTop: '1rem', marginBottom: '0.5rem' }}>No events found</h3>
-            <p>Try adjusting your search or filter criteria</p>
-          </div>
-        ) : (
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', 
-            gap: '20px' 
-          }}>
-            {filteredEvents.map(event => {
-              const { date, time } = formatDate(event.date);
-              const soldPercentage = (event.ticketsMinted / event.totalTickets) * 100;
-              const remaining = event.totalTickets - event.ticketsMinted;
-              
-              return (
-                <div 
-                  key={event.id} 
-                  onClick={() => setSelectedEvent(event)} 
-                  style={{ 
-                    border: '3px solid #000', 
-                    background: '#fff', 
-                    cursor: 'pointer', 
-                    overflow: 'hidden', 
-                    boxShadow: '4px 4px 0 #000', 
-                    transition: 'all 0.15s',
-                    borderRadius: '8px'
-                  }} 
-                  onMouseEnter={e => {
-                    e.currentTarget.style.transform = 'translate(-2px, -2px)';
-                    e.currentTarget.style.boxShadow = '6px 6px 0 #000';
-                  }} 
-                  onMouseLeave={e => {
-                    e.currentTarget.style.transform = '';
-                    e.currentTarget.style.boxShadow = '4px 4px 0 #000';
-                  }}
-                >
-                  {/* Event Image */}
-                  <div style={{ 
-                    height: '160px', 
-                    background: event.image,
-                    position: 'relative'
-                  }}>
-                    <div style={{
-                      position: 'absolute',
-                      top: '12px',
-                      right: '12px',
-                      background: 'rgba(0,0,0,0.8)',
-                      color: '#fff',
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      fontSize: '11px',
-                      fontWeight: 'bold'
-                    }}>
-                      {event.category}
-                    </div>
-                    {remaining < 50 && (
-                      <div style={{
-                        position: 'absolute',
-                        bottom: '12px',
-                        left: '12px',
-                        background: '#ef4444',
-                        color: '#fff',
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        fontSize: '11px',
-                        fontWeight: 'bold'
-                      }}>
-                        Only {remaining} left!
+        {/* RIGHT CONTENT (Event Grid) */}
+        <div style={{ flex: '3 1 0%' }}>
+          {filteredEvents.length === 0 ? (
+            <div className="brutal-card" style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--muted)' }}>
+              <Icon.Search />
+              <h3 style={{ marginTop: '1rem', marginBottom: '0.5rem', textTransform: 'uppercase' }}>No events found</h3>
+              <p>Try adjusting your search or filter criteria</p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px' }}>
+              {filteredEvents.map(event => {
+                const { date, time } = formatDate(event.date);
+                const soldPercentage = (event.ticketsMinted / event.totalTickets) * 100;
+                const remaining = event.totalTickets - event.ticketsMinted;
+                
+                return (
+                  <div 
+                    key={event.id} 
+                    onClick={() => setSelectedEvent(event)} 
+                    className="brutal-card"
+                    style={{ cursor: 'pointer', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} 
+                  >
+                    {/* Event Image */}
+                    <div style={{ height: '180px', background: event.image, position: 'relative', borderBottom: '3px solid var(--border)' }}>
+                      <div style={{ position: 'absolute', top: '12px', right: '12px', background: '#000', color: '#fff', padding: '6px 12px', border: '2px solid #fff', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                        {event.category}
                       </div>
-                    )}
-                  </div>
-                  
-                  {/* Event Details */}
-                  <div style={{ padding: '20px' }}>
-                    <h3 style={{ 
-                      fontFamily: 'Syne, sans-serif', 
-                      fontSize: '1.1rem', 
-                      marginBottom: '8px', 
-                      lineHeight: 1.2,
-                      height: '2.4rem',
-                      overflow: 'hidden'
-                    }}>
-                      {event.title}
-                    </h3>
-                    
-                    <p style={{ 
-                      fontSize: '12px', 
-                      color: '#666', 
-                      marginBottom: '12px',
-                      height: '3rem',
-                      overflow: 'hidden',
-                      lineHeight: 1.4
-                    }}>
-                      {event.description}
-                    </p>
-                    
-                    {/* Date and Venue */}
-                    <div style={{ 
-                      fontSize: '11px', 
-                      color: '#555', 
-                      marginBottom: '12px' 
-                    }}>
-                      <div style={{ 
-                        marginBottom: '6px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}>
-                        <Icon.Calendar /> {date} • {time}
-                      </div>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}>
-                        <Icon.MapPin /> {event.venue}
-                      </div>
-                    </div>
-                    
-                    {/* Organizer */}
-                    <div style={{ 
-                      fontSize: '10px', 
-                      color: '#888',
-                      marginBottom: '12px'
-                    }}>
-                      by {event.organizer}
-                    </div>
-                    
-                    {/* Availability Bar */}
-                    <div style={{ marginBottom: '12px' }}>
-                      <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between',
-                        fontSize: '11px',
-                        marginBottom: '4px'
-                      }}>
-                        <span>{remaining} available</span>
-                        <span>{Math.round(soldPercentage)}% sold</span>
-                      </div>
-                      <div style={{ 
-                        background: '#e5e7eb', 
-                        height: '4px', 
-                        borderRadius: '2px', 
-                        overflow: 'hidden' 
-                      }}>
-                        <div style={{ 
-                          background: soldPercentage > 80 ? '#ef4444' : soldPercentage > 50 ? '#f59e0b' : '#10b981', 
-                          height: '100%', 
-                          width: `${soldPercentage}%`,
-                          transition: 'width 0.3s'
-                        }} />
-                      </div>
-                    </div>
-                    
-                    {/* Price and Action */}
-                    <div style={{ 
-                      borderTop: '1px solid #eee', 
-                      paddingTop: '12px', 
-                      display: 'flex', 
-                      justifyContent: 'space-between',
-                      alignItems: 'center'
-                    }}>
-                      <div>
-                        <div style={{ 
-                          fontWeight: 'bold', 
-                          fontSize: '1.1rem' 
-                        }}>
-                          ₹{event.price.toLocaleString()}
+                      {remaining < 50 && (
+                        <div style={{ position: 'absolute', bottom: '12px', left: '12px', background: 'var(--error, #ef4444)', color: '#fff', border: '2px solid #fff', padding: '6px 12px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                          Only {remaining} left!
                         </div>
-                        <div style={{ 
-                          fontSize: '10px', 
-                          color: '#666' 
-                        }}>
-                          per ticket
+                      )}
+                    </div>
+                    
+                    {/* Event Details */}
+                    <div style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', marginBottom: '10px', lineHeight: 1.2, height: '3rem', overflow: 'hidden' }}>
+                        {event.title}
+                      </h3>
+                      
+                      <p style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '15px', height: '3.6rem', overflow: 'hidden', lineHeight: 1.5 }}>
+                        {event.description}
+                      </p>
+                      
+                      {/* Date and Venue */}
+                      <div style={{ fontSize: '11px', color: 'var(--text)', marginBottom: '15px', padding: '10px', background: 'var(--bg)', border: '2px solid var(--border)' }}>
+                        <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+                          <Icon.Calendar /> {date} • {time}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+                          <Icon.MapPin /> {event.venue}
                         </div>
                       </div>
-                      <div style={{
-                        background: remaining === 0 ? '#ccc' : '#000',
-                        color: '#fff',
-                        padding: '6px 12px',
-                        borderRadius: '4px',
-                        fontSize: '11px',
-                        fontWeight: 'bold',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}>
-                        <Icon.Ticket />
-                        {remaining === 0 ? 'Sold Out' : 'Book Now'}
+                      
+                      <div style={{ marginTop: 'auto' }}>
+                        {/* Organizer */}
+                        <div style={{ fontSize: '10px', color: 'var(--muted)', marginBottom: '12px', textTransform: 'uppercase' }}>
+                          by {event.organizer}
+                        </div>
+                        
+                        {/* Availability Bar */}
+                        <div style={{ marginBottom: '15px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '6px', fontWeight: 'bold' }}>
+                            <span>{remaining} AVAIL</span>
+                            <span>{Math.round(soldPercentage)}% SOLD</span>
+                          </div>
+                          <div style={{ background: 'var(--bg)', border: '2px solid var(--border)', height: '12px', overflow: 'hidden' }}>
+                            <div style={{ background: soldPercentage > 80 ? '#ef4444' : soldPercentage > 50 ? '#f59e0b' : 'var(--primary)', height: '100%', width: `${soldPercentage}%`, transition: 'width 0.3s' }} />
+                          </div>
+                        </div>
+                        
+                        {/* Price and Action */}
+                        <div style={{ borderTop: '3px solid var(--border)', paddingTop: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ fontWeight: 'bold', fontSize: '1.25rem' }}>
+                              ₹{event.price.toLocaleString()}
+                            </div>
+                            <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase' }}>
+                              per ticket
+                            </div>
+                          </div>
+                          <div className={remaining === 0 ? "" : "brutal-btn"} style={{
+                            background: remaining === 0 ? 'var(--muted)' : 'var(--primary)',
+                            color: '#000', padding: '10px 16px', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px',
+                            border: remaining === 0 ? '2px solid var(--border)' : '',
+                            textTransform: 'uppercase'
+                          }}>
+                            <Icon.Ticket />
+                            {remaining === 0 ? 'Sold Out' : 'Book Now'}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Event Detail Modal */}
       {selectedEvent && (
-        <div 
-          onClick={() => setSelectedEvent(null)} 
-          style={{ 
-            position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            bottom: 0, 
-            background: 'rgba(0,0,0,0.6)', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            zIndex: 1000,
-            padding: '20px'
-          }}
-        >
-          <div 
-            onClick={e => e.stopPropagation()} 
-            style={{ 
-              background: '#fff', 
-              border: '3px solid #000', 
-              maxWidth: '600px', 
-              width: '100%', 
-              maxHeight: '90vh', 
-              overflow: 'auto', 
-              boxShadow: '8px 8px 0 #000',
-              borderRadius: '8px'
-            }}
-          >
+        <div onClick={() => setSelectedEvent(null)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div onClick={e => e.stopPropagation()} className="brutal-card" style={{ maxWidth: '700px', width: '100%', maxHeight: '90vh', overflow: 'auto' }}>
+            
             {/* Modal Header Image */}
-            <div style={{ 
-              height: '250px', 
-              background: selectedEvent.image,
-              position: 'relative'
-            }}>
-              <button
-                onClick={() => setSelectedEvent(null)}
-                style={{
-                  position: 'absolute',
-                  top: '16px',
-                  right: '16px',
-                  background: 'rgba(0,0,0,0.8)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: '32px',
-                  height: '32px',
-                  cursor: 'pointer',
-                  fontSize: '18px'
-                }}
-              >
+            <div style={{ height: '250px', background: selectedEvent.image, position: 'relative', borderBottom: '3px solid var(--border)' }}>
+              <button onClick={() => setSelectedEvent(null)} style={{ position: 'absolute', top: '16px', right: '16px', background: '#000', color: '#fff', border: '2px solid #fff', width: '36px', height: '36px', cursor: 'pointer', fontSize: '20px', fontWeight: 'bold' }}>
                 ×
               </button>
-              <div style={{
-                position: 'absolute',
-                bottom: '16px',
-                left: '16px',
-                background: 'rgba(0,0,0,0.8)',
-                color: '#fff',
-                padding: '6px 12px',
-                borderRadius: '4px',
-                fontSize: '12px',
-                fontWeight: 'bold'
-              }}>
+              <div style={{ position: 'absolute', bottom: '16px', left: '16px', background: '#000', color: '#fff', padding: '8px 16px', border: '2px solid #fff', fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase' }}>
                 {selectedEvent.category}
               </div>
             </div>
             
             {/* Modal Content */}
-            <div style={{ padding: '24px' }}>
-              <h2 style={{ 
-                fontFamily: 'Syne, sans-serif', 
-                fontSize: '1.5rem', 
-                marginBottom: '8px' 
-              }}>
+            <div style={{ padding: '30px' }}>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', marginBottom: '10px', textTransform: 'uppercase' }}>
                 {selectedEvent.title}
               </h2>
-              
-              <p style={{ 
-                fontSize: '12px', 
-                color: '#666', 
-                marginBottom: '4px' 
-              }}>
+              <p style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '20px', textTransform: 'uppercase', fontWeight: 'bold' }}>
                 Organized by {selectedEvent.organizer}
               </p>
               
-              <p style={{ 
-                fontSize: '14px', 
-                color: '#333', 
-                marginBottom: '20px',
-                lineHeight: 1.5
-              }}>
+              <p style={{ fontSize: '14px', color: 'var(--text)', marginBottom: '30px', lineHeight: 1.6 }}>
                 {selectedEvent.description}
               </p>
               
-              {/* Event Details */}
-              <div style={{ 
-                background: '#f8f9fa',
-                padding: '16px',
-                borderRadius: '6px',
-                marginBottom: '20px'
-              }}>
-                <div style={{ 
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '12px',
-                  fontSize: '13px'
-                }}>
-                  <div>
-                    <div style={{ color: '#666', marginBottom: '4px' }}>Date & Time</div>
-                    <div style={{ fontWeight: 'bold' }}>
-                      {formatDate(selectedEvent.date).date} • {formatDate(selectedEvent.date).time}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ color: '#666', marginBottom: '4px' }}>Venue</div>
-                    <div style={{ fontWeight: 'bold' }}>{selectedEvent.venue}</div>
-                  </div>
-                  <div>
-                    <div style={{ color: '#666', marginBottom: '4px' }}>Price</div>
-                    <div style={{ fontWeight: 'bold', fontSize: '16px' }}>₹{selectedEvent.price.toLocaleString()}</div>
-                  </div>
-                  <div>
-                    <div style={{ color: '#666', marginBottom: '4px' }}>Availability</div>
-                    <div style={{ fontWeight: 'bold' }}>
-                      {selectedEvent.totalTickets - selectedEvent.ticketsMinted} / {selectedEvent.totalTickets}
-                    </div>
-                  </div>
+              {/* Event Details Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', fontSize: '13px', background: 'var(--bg)', border: '3px solid var(--border)', padding: '20px', marginBottom: '30px' }}>
+                <div>
+                  <div style={{ color: 'var(--muted)', marginBottom: '6px', textTransform: 'uppercase', fontWeight: 'bold' }}>Date & Time</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '15px' }}>{formatDate(selectedEvent.date).date} • {formatDate(selectedEvent.date).time}</div>
                 </div>
-              </div>
-              
-              {/* Availability Progress */}
-              <div style={{ marginBottom: '20px' }}>
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between',
-                  fontSize: '12px',
-                  marginBottom: '6px'
-                }}>
-                  <span>Tickets Available</span>
-                  <span>{Math.round((selectedEvent.ticketsMinted / selectedEvent.totalTickets) * 100)}% sold</span>
+                <div>
+                  <div style={{ color: 'var(--muted)', marginBottom: '6px', textTransform: 'uppercase', fontWeight: 'bold' }}>Venue</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '15px' }}>{selectedEvent.venue}</div>
                 </div>
-                <div style={{ 
-                  background: '#e5e7eb', 
-                  height: '8px', 
-                  borderRadius: '4px', 
-                  overflow: 'hidden' 
-                }}>
-                  <div style={{ 
-                    background: '#4a90e2', 
-                    height: '100%', 
-                    width: `${(selectedEvent.ticketsMinted / selectedEvent.totalTickets) * 100}%`,
-                    transition: 'width 0.3s'
-                  }} />
+                <div>
+                  <div style={{ color: 'var(--muted)', marginBottom: '6px', textTransform: 'uppercase', fontWeight: 'bold' }}>Price</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '20px', color: 'var(--primary)' }}>₹{selectedEvent.price.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--muted)', marginBottom: '6px', textTransform: 'uppercase', fontWeight: 'bold' }}>Availability</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '15px' }}>
+                    {selectedEvent.totalTickets - selectedEvent.ticketsMinted} / {selectedEvent.totalTickets}
+                  </div>
                 </div>
               </div>
               
@@ -698,27 +435,17 @@ const DashboardPage = () => {
               <button 
                 onClick={handleBookTicket} 
                 disabled={selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0}
+                className={selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 ? "" : "brutal-btn"}
                 style={{ 
-                  width: '100%', 
-                  padding: '14px', 
-                  background: selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 ? '#ccc' : '#000', 
-                  color: '#fff', 
-                  border: '2px solid #000', 
-                  cursor: selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 ? 'not-allowed' : 'pointer', 
-                  fontFamily: 'monospace', 
-                  fontSize: '14px', 
-                  fontWeight: 'bold',
-                  borderRadius: '6px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px'
+                  width: '100%', padding: '16px', background: selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 ? 'var(--muted)' : 'var(--primary)', color: '#000', 
+                  border: '3px solid var(--border)', cursor: selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 ? 'not-allowed' : 'pointer', 
+                  fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px'
                 }}
               >
                 <Icon.Ticket />
                 {selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 
-                  ? 'Sold Out' 
-                  : `Book Ticket • ₹${selectedEvent.price.toLocaleString()}`
+                  ? 'SOLD OUT' 
+                  : `BOOK TICKET • ₹${selectedEvent.price.toLocaleString()}`
                 }
               </button>
             </div>
@@ -727,21 +454,8 @@ const DashboardPage = () => {
       )}
 
       {/* Modals */}
-      <AadhaarModal
-        isOpen={showAadhaarModal}
-        onClose={() => setShowAadhaarModal(false)}
-        onVerified={handleIdentityVerified}
-        eventId={bookingFlow.event?.id}
-      />
-
-      <PaymentModal
-        isOpen={showPaymentModal}
-        onClose={() => setShowPaymentModal(false)}
-        event={bookingFlow.event}
-        userWallet={walletAddress}
-        identity={bookingFlow.identity}
-        onPaymentSuccess={handlePaymentSuccess}
-      />
+      <AadhaarModal isOpen={showAadhaarModal} onClose={() => setShowAadhaarModal(false)} onVerified={handleIdentityVerified} eventId={bookingFlow.event?.id} />
+      <PaymentModal isOpen={showPaymentModal} onClose={() => setShowPaymentModal(false)} event={bookingFlow.event} userWallet={walletAddress} identity={bookingFlow.identity} onPaymentSuccess={handlePaymentSuccess} />
     </div>
   );
 };

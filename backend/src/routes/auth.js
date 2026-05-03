@@ -181,4 +181,15 @@ router.post('/refresh-token', authenticateToken, authController.refreshToken);
  */
 router.get('/profile', authenticateToken, authController.getProfile);
 
+/**
+ * PUT /auth/profile
+ * Update authenticated user profile details (name, phone)
+ * 
+ * @auth Required - Bearer token
+ * @body {string} [name] - Updated full name
+ * @body {string} [phone] - Updated phone number
+ * @returns { user, message }
+ */
+router.put('/profile', authenticateToken, authController.updateProfile);
+
 export default router;
