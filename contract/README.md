@@ -1,44 +1,66 @@
-# ProofPass Smart Contract
+## Foundry
 
-Smart contracts for the ProofPass NFT-based event ticketing platform.
+**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
 
-## Setup
+Foundry consists of:
 
-```bash
-npm install
+-   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
+-   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
+-   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
+-   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+
+## Documentation
+
+https://book.getfoundry.sh/
+
+## Usage
+
+### Build
+
+```shell
+$ forge build
 ```
 
-## Compile
+### Test
 
-```bash
-npm run compile
+```shell
+$ forge test
 ```
 
-## Deploy
+### Format
 
-### Ganache (Local)
-```bash
-npm run deploy:ganache
+```shell
+$ forge fmt
 ```
 
-### Sepolia Testnet
-```bash
-npm run deploy:sepolia
+### Gas Snapshots
+
+```shell
+$ forge snapshot
 ```
 
-## Test
+### Anvil
 
-```bash
-npm run test
+```shell
+$ anvil
 ```
 
-## Contract
+### Deploy
 
-- **TicketNFT.sol**: ERC721 contract for non-transferable event tickets
+```shell
+$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+```
 
-## Features
+### Cast
 
-- Non-transferable NFT tickets
-- Ticket identity binding (Aadhar ID)
-- Picture hash storage for identity verification
-- Restricted transfers (only to designated address)
+```shell
+$ cast <subcommand>
+```
+
+### Help
+
+```shell
+$ forge --help
+$ anvil --help
+$ cast --help
+```

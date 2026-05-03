@@ -1,453 +1,384 @@
-# ProofPass - Identity-Bound NFT Ticketing Platform
+# BlockMyShow - NFT Event Ticketing Platform
 
-A blockchain-based event ticketing platform combining **Web2 simplicity** with **Web3 trust and security**.
+**Identity-bound, fraud-proof event ticketing powered by blockchain technology**
 
-> ProofPass is a fiat-powered NFT ticketing system with identity-bound verification, zero-knowledge-inspired commitments, automatic wallet creation, and immutable on-chain event storage.
+## 🎯 Overview
 
----
+BlockMyShow is a comprehensive NFT-based event ticketing platform that combines Web2 simplicity with Web3 security. It eliminates ticket fraud through identity-bound, non-transferable NFT tickets while maintaining a user-friendly experience.
 
-## 🎯 Core Concept
+## ✨ Key Features
 
-ProofPass eliminates traditional ticketing fraud by:
-- **Wallet-free Web3 UX**: Users never see blockchain complexity
-- **Fiat Payments**: Pay in ₹ via Razorpay (no crypto needed)
-- **Non-Transferable NFTs**: Prevents ticket resale/scalping
-- **Identity-Bound Tickets**: Tickets linked to Aadhaar identity
-- **ZK-Inspired Verification**: Privacy-preserving commitment proofs
-- **Immutable Records**: On-chain audit trail for every ticket
+### 🔐 **Identity-Bound Ticketing**
+- **Aadhaar Integration**: Tickets linked to government ID verification
+- **OTP Verification**: SMS-based identity confirmation
+- **Non-Transferable NFTs**: Prevents ticket scalping and resale fraud
+- **Zero-Knowledge Privacy**: Identity commitments without exposing personal data
 
----
+### 💳 **Seamless Payment Experience**
+- **Fiat Payments**: Pay in ₹ via Razorpay (no crypto knowledge required)
+- **Automatic Wallet Creation**: Backend generates wallets for users
+- **Account Abstraction**: Users never interact with blockchain directly
+- **Real-time NFT Minting**: Tickets created instantly after payment
+
+### 📱 **Multi-Platform Access**
+- **User Web App**: Event discovery and ticket booking
+- **Admin Mobile App**: Event management and gate scanning
+- **Role-Based Access**: Super admin, event creator, gate operator roles
+- **Cross-Platform Sync**: Real-time data across all platforms
+
+### 🚪 **Advanced Gate Verification**
+- **QR Code Scanning**: Real-time camera-based verification
+- **Multi-Step Verification**: QR → OTP → Identity → Entry
+- **Offline Support**: Basic verification without internet
+- **Fraud Prevention**: Duplicate entry detection and prevention
 
 ## 🏗️ Architecture
 
 ```
-Frontend (React)
-    ↓
-Backend API (Express)
-    ↓
-Smart Contract (ERC721)
-    ↓
-Blockchain (Ethereum)
+┌─────────────────────────────────────────────────────────────┐
+│                    BLOCKMYSHOW PLATFORM                     │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                ┌─────────────┼─────────────┐
+                │             │             │
+        ┌───────▼────────┐   │   ┌─────────▼──────────┐
+        │   User Web     │   │   │   Admin Mobile     │
+        │  (React+Vite)  │   │   │  (React Native)    │
+        └────────────────┘   │   └────────────────────┘
+                │            │            │
+                │            │            │
+        ┌───────▼────────────▼────────────▼──────────┐
+        │        Backend API (Express.js)            │
+        │         31 REST Endpoints                  │
+        └────────┬───────────────────────────────────┘
+                 │
+    ┌────────────┼────────────┐
+    │            │            │
+┌───▼───┐   ┌───▼────┐   ┌──▼──────┐   ┌─────────▼─────────┐
+│Firebase│   │Razorpay│   │ Base    │   │   Smart Contract  │
+│(Data)  │   │(Payment)   │Sepolia  │   │   (TicketNFT)     │
+└────────┘   └────────┘   │(L2 Chain)   └───────────────────┘
+                          └─────────┘
 ```
-
-### System Flow
-
-```
-1. Login              →  Backend creates hidden wallet
-2. Browse Events      →  IPFS-hosted event images
-3. Buy Ticket         →  Razorpay payment
-4. Identity Check     →  OTP verification
-5. NFT Minting        →  Smart contract creation
-6. Gate Entry         →  QR scan + identity verification
-7. Mark Used          →  On-chain ticket usage
-```
-
-### Data Layers
-
-**Frontend**: React + Vite + Tailwind CSS
-- Event browsing
-- Ticket booking UI
-- Organizer dashboard
-- Gate scanner interface
-
-**Backend**: Express.js API
-- User authentication & wallet management
-- Event CRUD operations
-- Razorpay payment processing
-- OTP-based identity verification
-- Smart contract interaction
-- Ticket state management
-
-**Smart Contract**: Non-Transferable ERC721
-- Ticket minting with commitment proof
-- Identity binding (Aadhaar)
-- Usage tracking
-- Transfer restrictions
-- IPFS metadata references
-
----
-
-## ✨ Core Features
-
-### 1. **Account Abstraction (Invisible Wallet Creation)**
-- User logs in with Google/email
-- Backend auto-generates blockchain wallet
-- No MetaMask or crypto knowledge required
-- Wallet stored securely backend-side
-
-### 2. **Fiat Payment Integration**
-- Users pay using ₹ (normal currency)
-- Payment through Razorpay
-- No crypto purchase required
-- NFT minted only after successful payment
-
-### 3. **NFT-Based Ticket Ownership**
-- Every ticket is an NFT
-- Ticket exists permanently on blockchain
-- Unique ownership proof
-- Immutable ticket history
-
-### 4. **Non-Transferable NFT Tickets**
-- Ticket NFT cannot be transferred
-- Prevents resale abuse and scalping
-- Identity remains bound to original buyer
-- Smart contract enforces transfer restrictions
-
-### 5. **Identity-Bound Ticketing**
-- Ticket linked to Aadhaar-based identity mapping
-- Mock Aadhaar registry for MVP
-- Prevents unauthorized sharing
-
-### 6. **OTP-Based Identity Verification**
-- OTP sent to registered phone
-- Used during booking
-- Used again during gate verification
-- Possession-based authentication
-
-### 7. **Basic ZK Commitment Proof**
-- Identity not stored directly on-chain
-- Cryptographic commitment generated:
-  ```
-  commitment = SHA256(secret + ticketId + identityHash)
-  ```
-- Privacy-preserving identity validation
-
-### 8. **On-Chain Event & Ticket Storage**
-- Event metadata tied to blockchain
-- Immutable event ownership
-- Ticket status stored on-chain (used/unused)
-- No duplicate usage possible
-
-### 9. **QR-Based Entry Pass**
-- Each ticket generates unique QR
-- QR used at gate for scanning
-- Fast verification process
-
-### 10. **Gate Verification System**
-- QR scan validation
-- Aadhaar re-check
-- OTP verification
-- Photo retrieval
-- Entry allow/reject with face matching
-
-### 11. **Face Verification Layer**
-- Profile photo linked to identity mapping
-- Gate staff compares face manually
-- Extra anti-fraud security layer
-
-### 12. **IPFS Metadata Storage**
-- Event image stored in IPFS
-- NFT metadata references IPFS CID
-- Decentralized permanent storage
-
-### 13. **Escrow-Based Payment Flow**
-- Money held temporarily in escrow
-- Organizer paid after event completion
-- Refund-friendly model for cancellations
-
-### 14. **Anti-Fraud Ticketing**
-- Prevent fake tickets
-- Prevent screenshot sharing
-- Prevent duplicate entry
-- Prevent manual database tampering
-
-### 15. **Organizer Dashboard**
-- Create events
-- Manage ticket limits
-- Revenue tracking
-- Event analytics
-
-### 16. **Gate Scanner Application**
-- Separate verifier interface
-- Security-focused workflow
-- Ticket validation terminal
-
----
-
-## 🗂️ Project Structure
-
-```
-BlockMyShow/
-├── contract/                    # Smart Contracts (Hardhat)
-│   ├── contracts/
-│   │   └── TicketNFT.sol       # ERC721 non-transferable NFT
-│   ├── scripts/
-│   │   └── deploy.js           # Deployment automation
-│   ├── hardhat.config.cjs
-│   └── package.json
-│
-├── backend/                     # Express API Server
-│   ├── src/
-│   │   ├── controllers/        # Business logic (auth, events, tickets, payment, identity, gate)
-│   │   ├── routes/             # API route definitions
-│   │   ├── middleware/         # JWT authentication
-│   │   ├── models/             # Data models
-│   │   ├── utils/              # Helpers (wallet, blockchain)
-│   │   └── index.js            # Server entry point
-│   ├── .env.example            # Environment template
-│   └── package.json
-│
-├── frontend/                    # React + Vite UI
-│   ├── src/
-│   │   ├── components/         # React components
-│   │   ├── pages/              # Page-level components
-│   │   ├── contexts/           # Theme context
-│   │   ├── contracts/          # Smart contract ABI
-│   │   ├── styles/             # CSS files
-│   │   ├── config.js           # Configuration
-│   │   └── App.jsx
-│   ├── public/                 # Static assets
-│   ├── index.html
-│   ├── vite.config.js
-│   └── package.json
-│
-├── feature.md                  # Feature list
-├── target.md                   # Project specification
-├── package.json                # Monorepo root
-└── README.md                   # This file
-```
-
----
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 16+
-- npm or yarn
-- Ganache (for local development)
+- Node.js 18+ and npm
+- Git
+- Mobile device with Expo Go (for admin app)
 
-### Installation
-
+### 1. Clone Repository
 ```bash
-# Install root dependencies
-npm install
-
-# Install contract dependencies
-cd contract && npm install
-
-# Install backend dependencies
-cd ../backend && npm install
-
-# Install frontend dependencies
-cd ../frontend && npm install
+git clone https://github.com/your-username/BlockMyShow.git
+cd BlockMyShow
 ```
 
-### Development
-
-**Terminal 1 - Backend API (port 5000)**
+### 2. Start Backend API
 ```bash
 cd backend
-cp .env.example .env  # Configure environment variables
+npm install
+cp .env.example .env
+# Edit .env with your configuration
+npm start
+```
+✅ Backend runs on `http://localhost:5000`
+
+### 3. Start User Web App
+```bash
+cd frontend/user-web
+npm install
 npm run dev
 ```
+✅ User app runs on `http://localhost:5173`
 
-**Terminal 2 - Frontend (port 5173)**
+### 4. Start Admin Mobile App
 ```bash
-cd frontend
-npm run dev
+cd frontend/admin-app
+npm install
+npx expo start
+```
+✅ Scan QR code with Expo Go app
+
+## 🧪 Testing the Platform
+
+### User Flow Testing
+1. **Open User Web App**: `http://localhost:5173`
+2. **Sign Up**: Email `test@example.com`, Password `password123`
+3. **Browse Events**: 6 sample events available
+4. **Book Ticket**: 
+   - Select any event → "Book Ticket"
+   - **Aadhaar**: Use `111111111111` or `222222222222`
+   - **OTP**: Use `123456`
+   - **Payment**: Mock payment flow
+5. **View Ticket**: Check "My Tickets" for QR code
+
+### Admin Flow Testing
+1. **Open Admin Mobile App**: Scan Expo QR code
+2. **Login**: Username `admin_user`, Password `admin123`
+3. **Dashboard**: View statistics and quick actions
+4. **Events**: Create, edit, delete events
+5. **Gate Scanner**: Scan QR codes from user tickets
+
+## 📊 Project Structure
+
+```
+BlockMyShow/
+├── contract/                    # Smart Contract (Solidity)
+│   ├── contracts/
+│   │   └── TicketNFT.sol       # ERC721 non-transferable NFT
+│   ├── scripts/deploy.js       # Deployment script
+│   └── README.md               # Contract documentation
+│
+├── backend/                     # Express.js API Server
+│   ├── src/
+│   │   ├── controllers/        # Business logic (31 endpoints)
+│   │   ├── routes/             # API route definitions
+│   │   ├── middleware/         # JWT auth, validation
+│   │   └── utils/              # Blockchain, Firebase helpers
+│   └── README.md               # API documentation
+│
+├── frontend/
+│   ├── user-web/               # React + Vite User App
+│   │   ├── src/
+│   │   │   ├── pages/          # Auth, Dashboard, Tickets
+│   │   │   ├── components/     # Modals, Navigation
+│   │   │   └── context/        # Authentication state
+│   │   └── README.md           # User app documentation
+│   │
+│   └── admin-app/              # React Native + Expo Admin App
+│       ├── app/
+│       │   ├── (tabs)/         # Tab navigation
+│       │   └── screens/        # Login, Dashboard, Scanner
+│       ├── context/            # Admin authentication
+│       └── README.md           # Admin app documentation
+│
+├── README.md                   # This file
+└── package.json                # Root package configuration
 ```
 
-**Terminal 3 - Smart Contract**
-```bash
-cd contract
-npm run compile
-npm run deploy:ganache  # Or deploy:sepolia
-```
+## 🔧 Technology Stack
 
-**Terminal 4 - Ganache (Local Blockchain)**
-```bash
-ganache-cli
-```
+### Frontend
+- **User Web**: React 19.2.5 + Vite 8.0.10 + Tailwind CSS
+- **Admin Mobile**: React Native 0.81.5 + Expo 54.0.33 + TypeScript
 
-### Configuration
+### Backend
+- **API Server**: Express.js 4.18.2 + Node.js 18+
+- **Database**: Firebase Firestore
+- **Authentication**: JWT tokens + role-based access
 
-**Backend** (`backend/.env`):
-```env
-PORT=5000
-JWT_SECRET=your_secret
-DATABASE_URL=mongodb://localhost:27017/proofpass
-RAZORPAY_KEY_ID=your_key
-RAZORPAY_KEY_SECRET=your_secret
-CONTRACT_ADDRESS=0x...
-NETWORK_URL=http://127.0.0.1:7545
-```
+### Blockchain
+- **Network**: Base Sepolia (L2) - Low fees, fast transactions
+- **Contract**: ERC721 non-transferable NFT
+- **Address**: `0x816EcFD04b8110D7Dc3b6AB0e056C2e1435F5812`
 
-**Frontend** (`frontend/src/config.js`):
-- Update `CONTRACT_ADDRESS` after deployment
-- Update `BACKEND_API_URL` to your API endpoint
-
----
-
-## 📡 API Endpoints
-
-### Authentication
-- `POST /api/auth/login` - Login/register user
-- `GET /api/auth/wallet` - Get user's wallet address
-
-### Events
-- `GET /api/events` - List all events
-- `GET /api/events/:id` - Get event details
-- `POST /api/events` - Create new event (organizer)
-
-### Tickets
-- `GET /api/tickets/my-tickets` - User's tickets
-- `GET /api/tickets/:id` - Ticket details
-- `POST /api/tickets/mint` - Mint NFT ticket
-
-### Payment
-- `POST /api/payment/create-order` - Create Razorpay order
-- `POST /api/payment/webhook` - Razorpay webhook handler
-
-### Identity
-- `POST /api/identity/send-otp` - Send OTP
-- `POST /api/identity/verify-otp` - Verify OTP
-- `POST /api/identity/commitment` - Generate commitment proof
-
-### Gate Verification
-- `POST /api/gate/verify` - Verify ticket at entry
-- `POST /api/gate/mark-used` - Mark ticket as used
-
----
+### Integrations
+- **Payment**: Razorpay (Indian payment gateway)
+- **Identity**: Aadhaar-based verification (mock system)
+- **Storage**: IPFS via Pinata
+- **Notifications**: Firebase Cloud Messaging
 
 ## 🔐 Security Features
 
-- **Private Key Encryption**: Wallet keys encrypted in database
-- **ZK Commitments**: Identity proofs don't expose sensitive data
-- **JWT Authentication**: API requests require valid tokens
-- **OTP Verification**: Two-factor authentication for sensitive operations
-- **Transfer Restrictions**: Smart contract prevents ticket transfers
-- **Immutable Records**: All tickets recorded on-chain
+### Identity Verification
+- **Aadhaar Integration**: Government ID-based verification
+- **OTP Validation**: SMS verification for phone ownership
+- **ZK Commitments**: Privacy-preserving identity proofs
+- **Biometric Checks**: Photo verification at gate entry
 
----
+### Blockchain Security
+- **Non-Transferable NFTs**: Prevents ticket resale/scalping
+- **Capacity Enforcement**: On-chain ticket limits
+- **Immutable Records**: Permanent audit trail
+- **Smart Contract Verified**: Open source and auditable
 
-## 💾 Database Schema
+### Application Security
+- **JWT Authentication**: Secure API access
+- **Role-Based Access**: Admin, creator, operator permissions
+- **Rate Limiting**: API abuse prevention
+- **Input Validation**: XSS and injection protection
 
-**users**: id, email, wallet_address, encrypted_private_key
-**events**: id, title, description, price, ipfs_image, organizer_id, date, venue
-**tickets**: id, user_id, event_id, token_id, commitment, used, purchase_date
-**aadhaar_registry**: aadhaar_id, phone, photo_url, name (mock)
-**payments**: id, user_id, event_id, razorpay_order_id, amount, status
+## 🌐 API Endpoints (31 Total)
 
----
+### Authentication (8 endpoints)
+- `POST /auth/signup/email` - Email registration
+- `POST /auth/login/email` - Email login
+- `POST /auth/signup/google` - Google OAuth
+- `POST /auth/signup/metamask` - MetaMask wallet
+- `POST /auth/admin-login` - Admin authentication
+- `GET /auth/profile` - User profile
+- `POST /auth/logout` - Logout
+- `POST /auth/refresh-token` - Token refresh
 
-## 🛠️ Smart Contract
+### Events (6 endpoints)
+- `GET /events` - List events
+- `GET /events/:id` - Event details
+- `POST /events` - Create event (admin)
+- `PUT /events/:id` - Update event (admin)
+- `DELETE /events/:id` - Cancel event (admin)
+- `GET /events/:id/remaining-tickets` - Availability
 
-**TicketNFT.sol** (ERC721 + Ownable)
+### Tickets (5 endpoints)
+- `GET /tickets/my-tickets` - User tickets
+- `GET /tickets/:id` - Ticket details
+- `POST /tickets/mint` - Mint NFT ticket
+- `GET /tickets/verify/:tokenId` - Verify ticket
+- `GET /tickets/:tokenId/qr` - Generate QR code
 
-```solidity
-struct Ticket {
-    uint256 eventId;
-    bytes32 commitment;    // ZK proof hash
-    bool used;
-    string metadataURI;    // IPFS reference
-}
+### Payment (5 endpoints)
+- `POST /payment/create-order` - Create Razorpay order
+- `POST /payment/verify` - Verify payment
+- `POST /payment/webhook` - Payment webhook
+- `GET /payment/history` - Payment history
+- `GET /payment/status` - Payment status
 
-// Key functions:
-- mintTicket()           // Create NFT ticket
-- markUsed()             // Mark ticket as used
-- _beforeTokenTransfer() // Block transfers
+### Identity (5 endpoints)
+- `POST /identity/send-otp` - Send OTP
+- `POST /identity/verify-otp` - Verify OTP
+- `POST /identity/commitment` - Generate ZK commitment
+- `GET /identity/:aadhaarId` - Identity info
+- `POST /identity/verify-commitment` - Verify commitment
+
+### Gate Verification (5 endpoints)
+- `POST /gate/verify` - Multi-step verification
+- `POST /gate/mark-used` - Mark ticket used
+- `GET /gate/stats` - Verification statistics
+- `POST /gate/verify-qr` - QR code verification
+- `GET /gate/operator-stats` - Operator performance
+
+## 🧪 Test Credentials
+
+### User Authentication
+- **Email**: `test@example.com`
+- **Password**: `password123`
+
+### Admin Authentication
+- **Username**: `admin_user`
+- **Password**: `admin123`
+
+### Identity Verification
+- **Aadhaar ID**: `111111111111` (Rajesh Kumar)
+- **Aadhaar ID**: `222222222222` (Priya Singh)
+- **OTP**: `123456` (universal test OTP)
+
+### MetaMask Testing
+- Install MetaMask browser extension
+- Connect to Base Sepolia testnet
+- Use any wallet address for testing
+
+## 🚀 Deployment Guide
+
+### Environment Setup
+
+#### Backend (.env)
+```env
+PORT=5000
+JWT_SECRET=your_jwt_secret
+DATABASE_URL=mongodb://localhost:27017/blockmyshow
+BLOCKCHAIN_NETWORK_URL=https://base-sepolia.g.alchemy.com/v2/YOUR_KEY
+CONTRACT_ADDRESS=0x816EcFD04b8110D7Dc3b6AB0e056C2e1435F5812
+RAZORPAY_KEY_ID=rzp_test_...
+RAZORPAY_KEY_SECRET=...
+FIREBASE_PROJECT_ID=blockmyshow-27725
 ```
 
----
-
-## 📦 Technology Stack
-
-| Component | Technology | Version |
-|-----------|-----------|---------|
-| Smart Contract | Solidity | 0.8.17 |
-| Contract Framework | Hardhat | 2.17.0 |
-| Backend | Express.js | 4.18.2 |
-| Frontend | React | 18.2.0 |
-| Build Tool | Vite | 4.4.5 |
-| Styling | Tailwind CSS | 3.4.17 |
-| Web3 Library | Ethers.js | 5.7.2 |
-| Payment Gateway | Razorpay | 2.9.0 |
-| Authentication | JWT | 9.0.2 |
-
----
-
-## 🚢 Deployment
-
-### Local (Ganache)
-```bash
-cd contract
-npm run deploy:ganache
+#### User Web App (.env)
+```env
+VITE_API_URL=http://localhost:5000/api/v1
+VITE_CONTRACT_ADDRESS=0x816EcFD04b8110D7Dc3b6AB0e056C2e1435F5812
+VITE_RAZORPAY_KEY_ID=rzp_test_...
 ```
 
-### Testnet (Sepolia)
-```bash
-cd contract
-npm run deploy:sepolia
-# Update CONTRACT_ADDRESS in backend/.env and frontend/config.js
-```
+### Production Deployment
 
-### Production
-- **Contract**: Ethereum Mainnet
-- **Backend**: AWS/GCP/Railway
-- **Frontend**: Vercel/Netlify
-- **Database**: MongoDB Atlas or RDS
-- **Storage**: Pinata IPFS
+#### Backend
+- **Railway**: Connect GitHub repo for auto-deployment
+- **Heroku**: `git push heroku main`
+- **AWS EC2**: Docker container deployment
+- **Google Cloud Run**: Serverless container hosting
 
----
+#### User Web App
+- **Vercel**: Connect GitHub repo for auto-deployment
+- **Netlify**: Drag & drop `dist/` folder
+- **AWS S3 + CloudFront**: Static website hosting
 
-## 👥 Team Roles
+#### Admin Mobile App
+- **Expo EAS Build**: `eas build --platform all`
+- **App Store**: `eas submit --platform ios`
+- **Google Play**: `eas submit --platform android`
 
-1. **Frontend Developer** - UI, components, organizer dashboard, QR display
-2. **Backend Developer** - APIs, payment, identity, ticket management
-3. **Blockchain Developer** - Smart contract, NFT minting, IPFS, Web3
-4. **Verification Engineer** - Gate scanner, QR parsing, commitment verification
+## 📈 Roadmap
 
----
-
-## 📝 Key Features Checklist
-
-- ✅ Account abstraction (auto wallet creation)
-- ✅ Fiat payment integration (Razorpay)
-- ✅ NFT-based tickets (ERC721)
-- ✅ Non-transferable NFTs
-- ✅ Identity binding (Aadhaar)
-- ✅ OTP verification
-- ✅ ZK commitments
-- ✅ On-chain event storage
-- ✅ On-chain ticket tracking
-- ✅ QR-based entry
+### Phase 1: MVP (Current)
+- ✅ Basic user authentication
+- ✅ Event discovery and booking
+- ✅ NFT ticket minting
 - ✅ Gate verification system
-- ✅ Face verification
-- ✅ IPFS metadata storage
-- ✅ Escrow payments
-- ✅ Anti-fraud measures
+- ✅ Admin management interface
 
----
+### Phase 2: Enhanced Features
+- [ ] Real Aadhaar API integration
+- [ ] Advanced analytics dashboard
+- [ ] Push notifications
+- [ ] Email confirmations
+- [ ] Ticket transfer restrictions
 
-## 📚 Documentation
+### Phase 3: Scale & Optimize
+- [ ] Multi-language support
+- [ ] Advanced fraud detection
+- [ ] Loyalty rewards system
+- [ ] API rate limiting
+- [ ] Performance monitoring
 
-- **feature.md** - Detailed feature list
-- **target.md** - Full project specification
-
-Each package contains its own README:
-- [contract/README.md](contract/README.md)
-- [backend/README.md](backend/README.md)
-- [frontend/README.md](frontend/README.md)
-
----
+### Phase 4: Enterprise
+- [ ] White-label solutions
+- [ ] Enterprise SSO integration
+- [ ] Advanced reporting
+- [ ] Custom branding
+- [ ] SLA guarantees
 
 ## 🤝 Contributing
 
-1. Create feature branch from respective package
-2. Make changes and test locally
-3. Submit pull request with clear description
+### Development Setup
+1. Fork the repository
+2. Create feature branch: `git checkout -b feature/amazing-feature`
+3. Make changes and test thoroughly
+4. Commit changes: `git commit -m 'Add amazing feature'`
+5. Push to branch: `git push origin feature/amazing-feature`
+6. Open Pull Request
 
----
+### Code Standards
+- **JavaScript/TypeScript**: ESLint + Prettier
+- **React**: Functional components with hooks
+- **API**: RESTful design principles
+- **Testing**: Jest for unit tests, Cypress for E2E
+- **Documentation**: JSDoc for functions, README for modules
 
 ## 📄 License
 
-MIT
+MIT License - See [LICENSE](LICENSE) file for details
+
+## 🆘 Support
+
+### Documentation
+- **Smart Contract**: [contract/README.md](contract/README.md)
+- **Backend API**: [backend/README.md](backend/README.md)
+- **User Web App**: [frontend/user-web/README.md](frontend/user-web/README.md)
+- **Admin Mobile App**: [frontend/admin-app/README.md](frontend/admin-app/README.md)
+
+### Community
+- **GitHub Issues**: Bug reports and feature requests
+- **Discussions**: General questions and ideas
+- **Discord**: Real-time community chat (coming soon)
+
+### Contact
+- **Email**: support@blockmyshow.com
+- **Twitter**: @BlockMyShow
+- **LinkedIn**: BlockMyShow Platform
 
 ---
 
-## 📞 Support
+**Built with ❤️ for the Web3 community**
 
-For detailed information, refer to:
-- Individual package READMEs
-- feature.md for feature descriptions
-- target.md for technical specifications
+*Making event ticketing fraud-proof, one NFT at a time.*
