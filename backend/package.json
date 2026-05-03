@@ -18,6 +18,7 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "node-appwrite": "^24.0.0",
-    "nodemon": "^3.1.14"
+    "nodemon": "^3.1.14",
+    "twilio": "^6.0.0"
   }
 }
