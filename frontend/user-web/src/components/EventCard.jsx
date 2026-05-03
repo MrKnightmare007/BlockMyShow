@@ -35,8 +35,10 @@ const EventCard = ({ event, onSelect }) => {
   };
 
   const { date, time } = formatDate(event.date);
-  const soldPercentage = (event.ticketsMinted / event.totalTickets) * 100;
-  const remaining = event.totalTickets - event.ticketsMinted;
+  const totalTickets = event.totalTickets || 1;
+  const ticketsMinted = event.ticketsMinted || 0;
+  const soldPercentage = (ticketsMinted / totalTickets) * 100;
+  const remaining = totalTickets - ticketsMinted;
 
   return (
     <div 
@@ -74,18 +76,27 @@ const EventCard = ({ event, onSelect }) => {
         </div>
         
         <div style={{ marginTop: 'auto' }}>
-          <div style={{ fontSize: '10px', color: 'var(--muted)', marginBottom: '12px', textTransform: 'uppercase' }}>
-            by {event.organizer}
+          <div style={{ fontSize: '10px', color: 'var(--muted)', marginBottom: '12px', textTransform: 'uppercase', fontWeight: 'bold' }}>
+            {event.isResale ? 'VERIFIED SECONDARY MARKET' : `by ${event.organizer || 'Official Partner'}`}
           </div>
           
           <div style={{ marginBottom: '15px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '6px', fontWeight: 'bold' }}>
-              <span>{remaining} AVAIL</span>
-              <span>{Math.round(soldPercentage)}% SOLD</span>
-            </div>
-            <div style={{ background: 'var(--bg)', border: '2px solid var(--border)', height: '12px', overflow: 'hidden' }}>
-              <div style={{ background: soldPercentage > 80 ? '#ef4444' : soldPercentage > 50 ? '#f59e0b' : 'var(--primary)', height: '100%', width: `${soldPercentage}%`, transition: 'width 0.3s' }} />
-            </div>
+            {event.isResale ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '6px', fontWeight: 'bold', color: '#f59e0b' }}>
+                <span>RESALE TICKET</span>
+                <span>SELLER: {event.seller}</span>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '6px', fontWeight: 'bold' }}>
+                  <span>{remaining} AVAIL</span>
+                  <span>{Math.round(soldPercentage)}% SOLD</span>
+                </div>
+                <div style={{ background: 'var(--bg)', border: '2px solid var(--border)', height: '12px', overflow: 'hidden' }}>
+                  <div style={{ background: soldPercentage > 80 ? '#ef4444' : soldPercentage > 50 ? '#f59e0b' : 'var(--primary)', height: '100%', width: `${soldPercentage}%`, transition: 'width 0.3s' }} />
+                </div>
+              </>
+            )}
           </div>
           
           <div style={{ borderTop: '3px solid var(--border)', paddingTop: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

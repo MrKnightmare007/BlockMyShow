@@ -165,27 +165,28 @@ const AadhaarModal = ({ isOpen, onClose, onVerified, eventId }) => {
       <div 
         onClick={e => e.stopPropagation()} 
         style={{ 
-          background: '#fff', 
-          border: '3px solid #000', 
+          background: 'var(--surface)', 
+          border: '3px solid var(--border)', 
           maxWidth: '500px', 
           width: '100%', 
-          boxShadow: '8px 8px 0 #000',
-          borderRadius: '8px',
+          boxShadow: '8px 8px 0 var(--border)',
+          borderRadius: '0px',
           overflow: 'hidden'
         }}
       >
         {/* Modal Header */}
         <div style={{
-          background: '#000',
-          color: '#fff',
+          background: 'var(--surface)',
+          color: 'var(--text)',
           padding: '20px',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center'
+          alignItems: 'center',
+          borderBottom: '3px solid var(--border)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Icon.Shield />
-            <h3 style={{ margin: 0, fontFamily: 'Syne, sans-serif' }}>
+            <h3 style={{ margin: 0, fontFamily: 'Syne, sans-serif', textTransform: 'uppercase', fontSize: '16px', fontWeight: 'bold' }}>
               Identity Verification
             </h3>
           </div>
@@ -194,7 +195,7 @@ const AadhaarModal = ({ isOpen, onClose, onVerified, eventId }) => {
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#fff',
+              color: 'var(--text)',
               cursor: 'pointer',
               padding: '4px'
             }}
@@ -215,34 +216,36 @@ const AadhaarModal = ({ isOpen, onClose, onVerified, eventId }) => {
             <div style={{
               width: '30px',
               height: '30px',
-              borderRadius: '50%',
-              background: '#000',
-              color: '#fff',
+              borderRadius: '0%',
+              background: 'var(--border)',
+              color: 'var(--surface)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: '12px',
-              fontWeight: 'bold'
+              fontWeight: 'bold',
+              border: '2px solid var(--border)'
             }}>
               1
             </div>
             <div style={{
               width: '40px',
               height: '2px',
-              background: step >= 2 ? '#000' : '#ddd',
+              background: step >= 2 ? 'var(--border)' : 'var(--muted)',
               margin: '0 10px'
             }} />
             <div style={{
               width: '30px',
               height: '30px',
-              borderRadius: '50%',
-              background: step >= 2 ? '#000' : '#ddd',
-              color: step >= 2 ? '#fff' : '#666',
+              borderRadius: '0%',
+              background: step >= 2 ? 'var(--border)' : 'transparent',
+              color: step >= 2 ? 'var(--surface)' : 'var(--muted)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: '12px',
-              fontWeight: 'bold'
+              fontWeight: 'bold',
+              border: '2px solid var(--border)'
             }}>
               2
             </div>
@@ -292,23 +295,26 @@ const AadhaarModal = ({ isOpen, onClose, onVerified, eventId }) => {
                 style={{
                   width: '100%',
                   padding: '12px',
-                  border: '2px solid #ddd',
-                  borderRadius: '6px',
+                  border: '2px solid var(--border)',
+                  borderRadius: '0px',
                   fontSize: '16px',
-                  fontFamily: 'monospace',
+                  fontFamily: 'var(--font-mono)',
                   letterSpacing: '2px',
-                  marginBottom: '20px'
+                  marginBottom: '20px',
+                  background: 'var(--input-bg)',
+                  color: 'var(--text)'
                 }}
                 maxLength={12}
               />
 
               <div style={{ 
                 fontSize: '12px', 
-                color: '#666',
+                color: 'var(--muted)',
                 marginBottom: '20px',
-                background: '#f8f9fa',
+                background: 'var(--surface)',
                 padding: '12px',
-                borderRadius: '6px'
+                border: '2px dashed var(--border)',
+                borderRadius: '0px'
               }}>
                 <strong>For testing, use:</strong><br/>
                 • 111111111111 (Rajesh Kumar)<br/>
@@ -396,13 +402,15 @@ const AadhaarModal = ({ isOpen, onClose, onVerified, eventId }) => {
                 style={{
                   width: '100%',
                   padding: '12px',
-                  border: '2px solid #ddd',
-                  borderRadius: '6px',
+                  border: '2px solid var(--border)',
+                  borderRadius: '0px',
                   fontSize: '18px',
-                  fontFamily: 'monospace',
+                  fontFamily: 'var(--font-mono)',
                   letterSpacing: '4px',
                   textAlign: 'center',
-                  marginBottom: '20px'
+                  marginBottom: '20px',
+                  background: 'var(--input-bg)',
+                  color: 'var(--text)'
                 }}
                 maxLength={6}
               />

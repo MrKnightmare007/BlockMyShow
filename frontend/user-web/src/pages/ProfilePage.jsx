@@ -149,24 +149,24 @@ const GiftCardsTab = () => (
   </div>
 );
 
-const RewardsTab = () => (
+const RewardsTab = ({ user }) => (
   <div className="fade-in brutal-card" style={{ padding: '30px' }}>
     <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 'bold', color: 'var(--text)', marginBottom: '24px', textTransform: 'uppercase' }}>Rewards & Loyalty</h2>
     
     <div style={{ background: 'var(--surface)', border: '3px solid var(--border)', padding: '30px', marginBottom: '30px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '20px' }}>
       <div>
-        <p style={{ color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 'bold', fontSize: '12px', margin: '0 0 5px 0' }}>Available Block Points</p>
-        <h1 style={{ color: 'var(--text)', fontSize: '36px', margin: 0, fontFamily: 'var(--font-display)' }}>450 <span style={{ fontSize: '16px', color: 'var(--primary)' }}>BP</span></h1>
+        <p style={{ color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 'bold', fontSize: '12px', margin: '0 0 5px 0' }}>Available Block Coins</p>
+        <h1 style={{ color: 'var(--text)', fontSize: '36px', margin: 0, fontFamily: 'var(--font-display)' }}>{user?.blockCoins || 0} <span style={{ fontSize: '16px', color: 'var(--primary)' }}>BC</span></h1>
       </div>
       <div style={{ width: '100%', maxWidth: '300px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text)', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px' }}>
           <span>Level 1</span>
-          <span>Level 2 (1000 BP)</span>
+          <span>Level 2 (1000 BC)</span>
         </div>
         <div style={{ height: '12px', background: 'var(--bg)', border: '2px solid var(--border)', overflow: 'hidden' }}>
-          <div style={{ width: '45%', height: '100%', background: 'var(--primary)' }}></div>
+          <div style={{ width: `${Math.min(100, ((user?.blockCoins || 0) / 1000) * 100)}%`, height: '100%', background: 'var(--primary)' }}></div>
         </div>
-        <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '8px', textAlign: 'right', fontWeight: 'bold', textTransform: 'uppercase' }}>550 BP to next tier</p>
+        <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '8px', textAlign: 'right', fontWeight: 'bold', textTransform: 'uppercase' }}>{Math.max(0, 1000 - (user?.blockCoins || 0))} BC to next tier</p>
       </div>
     </div>
 
@@ -178,7 +178,7 @@ const RewardsTab = () => (
             <Icon.Reward />
           </div>
           <h4 style={{ color: 'var(--text)', margin: '0 0 15px 0', fontFamily: 'var(--font-display)', textTransform: 'uppercase', fontSize: '14px' }}>{p}</h4>
-          <button className="brutal-btn" style={{ padding: '8px 12px', fontSize: '10px', width: '100%' }}>500 BP Required</button>
+          <button className="brutal-btn" style={{ padding: '8px 12px', fontSize: '10px', width: '100%' }}>500 BC Required</button>
         </div>
       ))}
     </div>
@@ -244,7 +244,7 @@ export default function ProfilePage() {
       case 'profile': return <ProfileDetailsTab user={user} walletAddress={walletAddress} token={token} login={login} />;
       case 'coupons': return <CouponsTab />;
       case 'giftcards': return <GiftCardsTab />;
-      case 'rewards': return <RewardsTab />;
+      case 'rewards': return <RewardsTab user={user} />;
       case 'help': return <HelpCentreTab />;
       default: return <ProfileDetailsTab user={user} walletAddress={walletAddress} token={token} login={login} />;
     }

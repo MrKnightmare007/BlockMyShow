@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 
 const API_BASE = 'http://localhost:5000/api/v1';
 
@@ -36,12 +37,14 @@ const Icon = {
   ),
 };
 
-const PaymentModal = ({ isOpen, onClose, event, userWallet, identity, onPaymentSuccess }) => {
+const PaymentModal = ({ isOpen, onClose, event, userWallet, identity, quantity, onPaymentSuccess }) => {
   const [step, setStep] = useState(1); // 1: Review, 2: Payment, 3: Processing, 4: Success
   const [paymentMethod, setPaymentMethod] = useState('razorpay');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [paymentData, setPaymentData] = useState(null);
+  const [useBlockCoins, setUseBlockCoins] = useState(false);
+  const { user, updateBlockCoins } = useAuth();
 
   // Reset state when modal opens/closes
   const resetState = () => {
@@ -58,10 +61,15 @@ const PaymentModal = ({ isOpen, onClose, event, userWallet, identity, onPaymentS
   };
 
   // Calculate total amount (including fees)
-  const ticketPrice = event?.price || 0;
+  const qty = quantity || 1;
+  const ticketPrice = (event?.price || 0) * qty;
   const platformFee = Math.round(ticketPrice * 0.02); // 2% platform fee
   const gstAmount = Math.round((ticketPrice + platformFee) * 0.18); // 18% GST
-  const totalAmount = ticketPrice + platformFee + gstAmount;
+  
+  const coinsAvailable = user?.blockCoins || 0;
+  const coinDiscount = useBlockCoins ? Math.min(coinsAvailable / 10, ticketPrice + platformFee + gstAmount) : 0;
+  
+  const totalAmount = Math.max(0, ticketPrice + platformFee + gstAmount - coinDiscount);
 
   // Format date for display
   const formatDate = (dateString) => {
@@ -95,7 +103,7 @@ const PaymentModal = ({ isOpen, onClose, event, userWallet, identity, onPaymentS
         },
         body: JSON.stringify({
           eventId: event.id,
-          quantity: 1,
+          quantity: qty,
           totalAmount: totalAmount,
           currency: 'INR'
         }),
@@ -141,6 +149,7 @@ const PaymentModal = ({ isOpen, onClose, event, userWallet, identity, onPaymentS
         },
         body: JSON.stringify({
           eventId: event.id,
+          quantity: qty,
           paymentId: mockPaymentId,
           aadhaarId: identity.aadhaarId,
           secret: 'user_secret_' + Date.now()
@@ -165,6 +174,13 @@ const PaymentModal = ({ isOpen, onClose, event, userWallet, identity, onPaymentS
 
       setPaymentData(successData);
       setStep(4); // Success
+      
+      // Update Block Coins if used or earned
+      if (useBlockCoins) {
+        updateBlockCoins(-coinsAvailable);
+      }
+      // Earn 10% of total as new coins
+      updateBlockCoins(Math.floor(totalAmount / 10));
       
       // Auto-close and callback after 3 seconds
       setTimeout(() => {
@@ -203,28 +219,29 @@ const PaymentModal = ({ isOpen, onClose, event, userWallet, identity, onPaymentS
       <div 
         onClick={e => e.stopPropagation()} 
         style={{ 
-          background: '#fff', 
-          border: '3px solid #000', 
+          background: 'var(--surface)', 
+          border: '3px solid var(--border)', 
           maxWidth: '600px', 
           width: '100%', 
           maxHeight: '90vh',
           overflow: 'auto',
-          boxShadow: '8px 8px 0 #000',
-          borderRadius: '8px'
+          boxShadow: '8px 8px 0 var(--border)',
+          borderRadius: '0px'
         }}
       >
         {/* Modal Header */}
         <div style={{
-          background: step === 4 ? '#10b981' : '#000',
-          color: '#fff',
+          background: step === 4 ? '#10b981' : 'var(--surface)',
+          color: step === 4 ? '#000' : 'var(--text)',
           padding: '20px',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center'
+          alignItems: 'center',
+          borderBottom: '3px solid var(--border)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {step === 4 ? <Icon.CheckCircle /> : <Icon.CreditCard />}
-            <h3 style={{ margin: 0, fontFamily: 'Syne, sans-serif' }}>
+            <h3 style={{ margin: 0, fontFamily: 'Syne, sans-serif', textTransform: 'uppercase', fontSize: '16px', fontWeight: 'bold' }}>
               {step === 1 ? 'Review Booking' : 
                step === 2 ? 'Payment' : 
                step === 3 ? 'Processing...' : 
@@ -237,7 +254,7 @@ const PaymentModal = ({ isOpen, onClose, event, userWallet, identity, onPaymentS
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: '#fff',
+                color: 'var(--text)',
                 cursor: 'pointer',
                 padding: '4px'
               }}
@@ -268,17 +285,18 @@ const PaymentModal = ({ isOpen, onClose, event, userWallet, identity, onPaymentS
             <div>
               {/* Event Details */}
               <div style={{
-                background: '#f8f9fa',
+                background: 'var(--bg)',
                 padding: '20px',
-                borderRadius: '8px',
+                border: '2px solid var(--border)',
+                borderRadius: '0px',
                 marginBottom: '20px'
               }}>
-                <h4 style={{ marginBottom: '12px', fontSize: '16px' }}>Event Details</h4>
-                <div style={{ marginBottom: '8px', fontWeight: 'bold' }}>{event.title}</div>
-                <div style={{ fontSize: '14px', color: '#666', marginBottom: '4px' }}>
+                <h4 style={{ marginBottom: '12px', fontSize: '16px', textTransform: 'uppercase' }}>Event Details</h4>
+                <div style={{ marginBottom: '8px', fontWeight: 'bold', fontSize: '18px' }}>{event.title}</div>
+                <div style={{ fontSize: '14px', color: 'var(--text)', marginBottom: '4px' }}>
                   📅 {eventDate.date} • {eventDate.time}
                 </div>
-                <div style={{ fontSize: '14px', color: '#666' }}>
+                <div style={{ fontSize: '14px', color: 'var(--text)' }}>
                   📍 {event.venue}
                 </div>
               </div>
@@ -307,9 +325,10 @@ const PaymentModal = ({ isOpen, onClose, event, userWallet, identity, onPaymentS
 
               {/* Wallet Information */}
               <div style={{
-                background: '#f8f9fa',
+                background: 'var(--bg)',
                 padding: '16px',
-                borderRadius: '8px',
+                border: '2px solid var(--border)',
+                borderRadius: '0px',
                 marginBottom: '20px'
               }}>
                 <div style={{ 
@@ -323,8 +342,8 @@ const PaymentModal = ({ isOpen, onClose, event, userWallet, identity, onPaymentS
                 </div>
                 <div style={{ 
                   fontSize: '12px', 
-                  fontFamily: 'monospace',
-                  color: '#666',
+                  fontFamily: 'var(--font-mono)',
+                  color: 'var(--muted)',
                   wordBreak: 'break-all'
                 }}>
                   {userWallet}
@@ -376,15 +395,46 @@ const PaymentModal = ({ isOpen, onClose, event, userWallet, identity, onPaymentS
                     <span>₹{gstAmount.toLocaleString()}</span>
                   </div>
                   <div style={{
-                    borderTop: '1px solid #e5e7eb',
+                    borderTop: '1px solid var(--border)',
                     paddingTop: '12px',
                     display: 'flex',
-                    justifyContent: 'space-between',
-                    fontWeight: 'bold',
-                    fontSize: '18px'
+                    flexDirection: 'column',
+                    gap: '10px'
                   }}>
-                    <span>Total Amount</span>
-                    <span>₹{totalAmount.toLocaleString()}</span>
+                    {coinsAvailable > 0 && (
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'space-between',
+                        padding: '10px',
+                        background: 'var(--surface)',
+                        border: '2px dashed var(--primary)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <input 
+                            type="checkbox" 
+                            id="useCoins" 
+                            checked={useBlockCoins}
+                            onChange={(e) => setUseBlockCoins(e.target.checked)}
+                            style={{ cursor: 'pointer' }}
+                          />
+                          <label htmlFor="useCoins" style={{ fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}>
+                            Use {coinsAvailable} Block Coins
+                          </label>
+                        </div>
+                        <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>- ₹{Math.floor(coinsAvailable / 10)}</span>
+                      </div>
+                    )}
+
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontWeight: 'bold',
+                      fontSize: '18px'
+                    }}>
+                      <span>Total Amount</span>
+                      <span>₹{totalAmount.toLocaleString()}</span>
+                    </div>
                   </div>
                 </div>
               </div>

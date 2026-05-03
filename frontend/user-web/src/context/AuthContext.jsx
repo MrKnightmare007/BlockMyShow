@@ -69,6 +69,14 @@ export const AuthProvider = ({ children }) => {
 
   const isAuthenticated = !!token && !!user;
 
+  const updateBlockCoins = (amount) => {
+    if (user) {
+      const updatedUser = { ...user, blockCoins: (user.blockCoins || 0) + amount };
+      setUser(updatedUser);
+      localStorage.setItem('auth_user', JSON.stringify(updatedUser));
+    }
+  };
+
   const value = {
     user,
     token,
@@ -80,6 +88,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     setAuthError,
     clearError,
+    updateBlockCoins
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

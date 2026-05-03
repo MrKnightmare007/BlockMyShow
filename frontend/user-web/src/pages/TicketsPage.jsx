@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
+import ResaleModal from '../components/ResaleModal';
+import TicketDetailModal from '../components/TicketDetailModal';
+import toast from 'react-hot-toast';
 
 // Inline Icons
 const Icon = {
@@ -17,15 +20,17 @@ const Icon = {
 
 // Mock Data
 const ALL_TICKETS = [
-  { id: 'TXN-8429', title: 'Web3 Summit Mumbai 2024', date: 'June 15, 2024', venue: 'Mumbai Convention Centre', status: 'Active', price: '₹2,500', image: 'linear-gradient(135deg, #4a90e2, #000)' },
-  { id: 'TXN-9912', title: 'Ethereum Developer Meetup', date: 'August 02, 2024', venue: 'Bangalore Tech Park', status: 'Active', price: '₹1,200', image: 'linear-gradient(135deg, #10b981, #000)' },
-  { id: 'TXN-4511', title: 'NFT Art Exhibition Delhi', date: 'May 10, 2024', venue: 'Delhi Art Gallery', status: 'Resaled', price: '₹800', image: 'linear-gradient(135deg, #ec4899, #000)' },
-  { id: 'TXN-1102', title: 'Crypto DevCon', date: 'March 10, 2024', venue: 'Virtual Metaverse', status: 'Expired', price: '₹500', image: 'linear-gradient(135deg, #f59e0b, #000)' }
+  { id: 'TXN-8429', title: 'Web3 Summit Mumbai 2024', date: 'June 15, 2024', venue: 'Mumbai Convention Centre', status: 'Active', price: '₹2,500', quantity: 5, image: 'linear-gradient(135deg, #4a90e2, #000)' },
+  { id: 'TXN-9912', title: 'Ethereum Developer Meetup', date: 'August 02, 2024', venue: 'Bangalore Tech Park', status: 'Active', price: '₹1,200', quantity: 2, image: 'linear-gradient(135deg, #10b981, #000)' },
+  { id: 'TXN-4511', title: 'NFT Art Exhibition Delhi', date: 'May 10, 2024', venue: 'Delhi Art Gallery', status: 'Resaled', price: '₹800', quantity: 1, image: 'linear-gradient(135deg, #ec4899, #000)' },
+  { id: 'TXN-1102', title: 'Crypto DevCon', date: 'March 10, 2024', venue: 'Virtual Metaverse', status: 'Expired', price: '₹500', quantity: 1, image: 'linear-gradient(135deg, #f59e0b, #000)' }
 ];
 
 export default function TicketsPage() {
   const { user } = useAuth();
   const [activeFilter, setActiveFilter] = useState('Active');
+  const [selectedResaleTicket, setSelectedResaleTicket] = useState(null);
+  const [selectedViewTicket, setSelectedViewTicket] = useState(null);
 
   const filteredTickets = ALL_TICKETS.filter(t => t.status === activeFilter);
 
@@ -114,6 +119,7 @@ export default function TicketsPage() {
 
                     <div style={{ display: 'flex', gap: '15px' }}>
                       <span style={{ fontSize: '11px', padding: '6px 10px', background: 'var(--bg)', border: '2px solid var(--border)', color: 'var(--muted)', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>ID: {ticket.id}</span>
+                      <span style={{ fontSize: '11px', padding: '6px 10px', background: 'var(--bg)', border: '2px solid var(--border)', color: 'var(--muted)', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>QTY: {ticket.quantity}</span>
                       <span style={{ fontSize: '11px', padding: '6px 10px', background: ticket.status === 'Active' ? 'var(--primary)' : 'var(--bg)', border: `2px solid var(--border)`, color: ticket.status === 'Active' ? '#000' : 'var(--muted)', fontWeight: 'bold', textTransform: 'uppercase' }}>{ticket.status}</span>
                     </div>
                   </div>
@@ -123,11 +129,30 @@ export default function TicketsPage() {
                     
                     {activeFilter === 'Active' ? (
                       <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                        <button 
+                          className="brutal-btn" 
+                          style={{ background: 'var(--surface)', color: '#f59e0b', borderColor: '#f59e0b', padding: '10px 16px', fontSize: '12px' }}
+                          onClick={() => setSelectedResaleTicket(ticket)}
+                        >
+                          Resell
+                        </button>
                         <button className="brutal-btn" style={{ background: 'var(--surface)', color: 'var(--text)', padding: '10px 16px', fontSize: '12px' }}>Transfer</button>
-                        <button className="brutal-btn" style={{ padding: '10px 16px', fontSize: '12px' }}>View Ticket</button>
+                        <button 
+                          className="brutal-btn" 
+                          style={{ padding: '10px 16px', fontSize: '12px' }}
+                          onClick={() => setSelectedViewTicket(ticket)}
+                        >
+                          View Ticket
+                        </button>
                       </div>
                     ) : (
-                      <button className="brutal-btn" style={{ marginTop: '15px', background: 'var(--surface)', color: 'var(--text)', padding: '10px 16px', fontSize: '12px' }}>View Details</button>
+                      <button 
+                        className="brutal-btn" 
+                        style={{ marginTop: '15px', background: 'var(--surface)', color: 'var(--text)', padding: '10px 16px', fontSize: '12px' }}
+                        onClick={() => setSelectedViewTicket(ticket)}
+                      >
+                        View Details
+                      </button>
                     )}
                   </div>
                 </div>
@@ -136,6 +161,26 @@ export default function TicketsPage() {
           </div>
         )}
       </div>
+
+      <ResaleModal 
+        isOpen={!!selectedResaleTicket}
+        onClose={() => setSelectedResaleTicket(null)}
+        ticket={selectedResaleTicket || {}}
+        onResaleList={(data) => {
+          toast.success(`${data.quantity} tickets listed for resale!`, {
+            style: {
+              border: '2px solid #f59e0b',
+              background: '#000',
+              color: '#f59e0b',
+            }
+          });
+        }}
+      />
+      <TicketDetailModal 
+        isOpen={!!selectedViewTicket}
+        onClose={() => setSelectedViewTicket(null)}
+        ticket={selectedViewTicket}
+      />
     </div>
   );
 }

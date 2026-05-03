@@ -35,12 +35,10 @@ const Icon = {
     </svg>
   ),
   Ticket: () => (
-    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2Z"/>
-      <path d="M13 5v2"/>
-      <path d="M13 17v2"/>
-      <path d="M13 11v2"/>
-    </svg>
+    <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2Z"/></svg>
+  ),
+  Bell: () => (
+    <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
   ),
 };
 
@@ -160,6 +158,37 @@ const MOCK_EVENTS = [
   }
 ];
 
+const MOCK_RESALE_TICKETS = [
+  {
+    id: 'resale_1',
+    eventId: 'event_1',
+    title: 'Web3 Summit Mumbai (RESALE)',
+    price: 2500,
+    seller: '0x742d...44e',
+    venue: 'Mumbai Convention Centre',
+    city: 'Mumbai',
+    date: '2024-06-15T10:00:00Z',
+    category: 'Technology',
+    image: 'linear-gradient(135deg, #4a90e2, #000)',
+    description: 'Selling 1 ticket at original price. Unable to attend due to work travel.',
+    isResale: true
+  },
+  {
+    id: 'resale_2',
+    eventId: 'event_7',
+    title: 'Kolkata Web3 Meetup (RESALE)',
+    price: 0,
+    seller: '0x123a...bc9',
+    venue: 'Salt Lake Sector V',
+    city: 'Kolkata',
+    date: '2024-12-05T17:00:00Z',
+    category: 'Technology',
+    image: 'linear-gradient(135deg, #31bbaf, #000)',
+    description: 'Free ticket resale. Just want it to go to someone who can attend!',
+    isResale: true
+  }
+];
+
 const DashboardPage = () => {
   const { user, walletAddress } = useAuth();
   const { selectedCity } = useAppLocation();
@@ -171,6 +200,8 @@ const DashboardPage = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [priceRange, setPriceRange] = useState({ min: 0, max: 10000 });
   const [dateFilter, setDateFilter] = useState('All');
+  const [marketType, setMarketType] = useState('Official');
+  const [ticketQuantity, setTicketQuantity] = useState(1);
   const [showAadhaarModal, setShowAadhaarModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [bookingFlow, setBookingFlow] = useState({
@@ -182,9 +213,10 @@ const DashboardPage = () => {
   // Get unique categories
   const categories = ['All', ...new Set(events.map(event => event.category))];
 
-  // Filter events based on search, category, city, price, and date
+  // Filter events based on search, category, city, price, date, and market type
   useEffect(() => {
-    let filtered = events;
+    let baseData = marketType === 'Official' ? events : MOCK_RESALE_TICKETS;
+    let filtered = baseData;
     
     // City filter
     if (selectedCity) {
@@ -239,7 +271,7 @@ const DashboardPage = () => {
     }
     
     setFilteredEvents(filtered);
-  }, [searchTerm, selectedCategory, selectedCity, priceRange, dateFilter, events]);
+  }, [searchTerm, selectedCategory, selectedCity, priceRange, dateFilter, marketType, events]);
 
   // Format date for display
   const formatDate = (dateString) => {
@@ -324,6 +356,32 @@ const DashboardPage = () => {
                 <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }}>
                   <Icon.Search />
                 </div>
+              </div>
+            </div>
+
+            {/* Market Type Toggle */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', textTransform: 'uppercase' }}>Market Type</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {['Official', 'Resale'].map(type => (
+                  <button
+                    key={type}
+                    onClick={() => setMarketType(type)}
+                    style={{
+                      flex: 1,
+                      padding: '10px',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      textTransform: 'uppercase',
+                      background: marketType === type ? 'var(--primary)' : 'var(--surface)',
+                      color: marketType === type ? '#000' : 'var(--text)',
+                      border: '2px solid var(--border)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {type}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -539,26 +597,64 @@ const DashboardPage = () => {
                 <div>
                   <div style={{ color: 'var(--muted)', marginBottom: '6px', textTransform: 'uppercase', fontWeight: 'bold' }}>Availability</div>
                   <div style={{ fontWeight: 'bold', fontSize: '15px' }}>
-                    {selectedEvent.totalTickets - selectedEvent.ticketsMinted} / {selectedEvent.totalTickets}
+                    {selectedEvent.isResale 
+                      ? '1 Ticket Available' 
+                      : `${selectedEvent.totalTickets - selectedEvent.ticketsMinted} / ${selectedEvent.totalTickets}`
+                    }
+                  </div>
+                </div>
+
+                {/* Quantity Selector */}
+                <div style={{ gridColumn: 'span 2' }}>
+                  <div style={{ color: 'var(--muted)', marginBottom: '8px', textTransform: 'uppercase', fontWeight: 'bold' }}>
+                    Select Quantity (Max {selectedEvent.isResale ? 1 : 5})
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    <div style={{ display: 'flex', border: '3px solid var(--border)', background: 'var(--bg)' }}>
+                      <button 
+                        onClick={() => setTicketQuantity(Math.max(1, ticketQuantity - 1))}
+                        style={{ padding: '8px 20px', background: 'transparent', border: 'none', color: 'var(--text)', cursor: 'pointer', fontWeight: 'bold', fontSize: '20px' }}
+                      >-</button>
+                      <div style={{ padding: '8px 20px', borderLeft: '3px solid var(--border)', borderRight: '3px solid var(--border)', fontWeight: 'bold', minWidth: '50px', textAlign: 'center', fontSize: '18px' }}>
+                        {ticketQuantity}
+                      </div>
+                      <button 
+                        onClick={() => setTicketQuantity(Math.min(selectedEvent.isResale ? 1 : 5, ticketQuantity + 1))}
+                        style={{ padding: '8px 20px', background: 'transparent', border: 'none', color: 'var(--text)', cursor: 'pointer', fontWeight: 'bold', fontSize: '20px' }}
+                      >+</button>
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 'bold' }}>
+                      ₹{(selectedEvent.price * ticketQuantity).toLocaleString()} TOTAL
+                    </div>
                   </div>
                 </div>
               </div>
               
               {/* Book Button */}
               <button 
-                onClick={handleBookTicket} 
-                disabled={selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0}
-                className={selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 ? "" : "brutal-btn"}
+                onClick={() => {
+                  const maxQty = selectedEvent.isResale ? 1 : (selectedEvent.totalTickets - selectedEvent.ticketsMinted);
+                  if (maxQty === 0) {
+                    toast.success('Joined Waitlist! We will notify you when a resale ticket is available.', {
+                      icon: '🔔',
+                      style: { border: '2px solid var(--primary)', background: 'var(--bg)', color: 'var(--text)' }
+                    });
+                  } else {
+                    handleBookTicket();
+                  }
+                }}
+                className="brutal-btn"
                 style={{ 
-                  width: '100%', padding: '16px', background: selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 ? 'var(--muted)' : 'var(--primary)', color: '#000', 
-                  border: '3px solid var(--border)', cursor: selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 ? 'not-allowed' : 'pointer', 
-                  fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px'
+                  width: '100%', padding: '16px', 
+                  background: selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 ? 'var(--bg)' : 'var(--primary)', 
+                  color: selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 ? 'var(--text)' : '#000', 
+                  border: '3px solid var(--border)', cursor: 'pointer', 
+                  fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', textTransform: 'uppercase', fontWeight: 'bold'
                 }}
               >
-                <Icon.Ticket />
-                {selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 
-                  ? 'SOLD OUT' 
-                  : `BOOK TICKET • ₹${selectedEvent.price.toLocaleString()}`
+                {((selectedEvent.isResale ? 1 : (selectedEvent.totalTickets - selectedEvent.ticketsMinted)) === 0) 
+                  ? <><Icon.Bell /> JOIN WAITLIST</>
+                  : <><Icon.Ticket /> BOOK {ticketQuantity} {ticketQuantity === 1 ? 'TICKET' : 'TICKETS'} • ₹{(selectedEvent.price * ticketQuantity).toLocaleString()}</>
                 }
               </button>
             </div>
@@ -568,7 +664,7 @@ const DashboardPage = () => {
 
       {/* Modals */}
       <AadhaarModal isOpen={showAadhaarModal} onClose={() => setShowAadhaarModal(false)} onVerified={handleIdentityVerified} eventId={bookingFlow.event?.id} />
-      <PaymentModal isOpen={showPaymentModal} onClose={() => setShowPaymentModal(false)} event={bookingFlow.event} userWallet={walletAddress} identity={bookingFlow.identity} onPaymentSuccess={handlePaymentSuccess} />
+      <PaymentModal isOpen={showPaymentModal} onClose={() => setShowPaymentModal(false)} event={bookingFlow.event} userWallet={walletAddress} identity={bookingFlow.identity} quantity={ticketQuantity} onPaymentSuccess={handlePaymentSuccess} />
     </div>
   );
 };
