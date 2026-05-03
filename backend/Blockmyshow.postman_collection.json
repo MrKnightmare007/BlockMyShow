@@ -39,7 +39,23 @@
     },
     {
       "key": "eventId",
-      "value": ""
+      "value": "1"
+    },
+    {
+      "key": "identityId",
+      "value": "123456789012"
+    },
+    {
+      "key": "phoneNumber",
+      "value": "+919876543210"
+    },
+    {
+      "key": "ticketOtp",
+      "value": "123456"
+    },
+    {
+      "key": "tokenId",
+      "value": "1"
     }
   ],
   "item": [
@@ -320,6 +336,245 @@
             "events",
             "{{eventId}}",
             "metadata"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Identity - Add Identity",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identity_id\": \"{{identityId}}\",\n  \"phone_number\": \"{{phoneNumber}}\",\n  \"name\": \"John Doe\",\n  \"profile_photo_url\": \"https://example.com/photo.jpg\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/identity/add",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "identity",
+            "add"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Tickets - Request Ticket",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "if (json.expires_in_minutes) console.log('OTP expires in: ' + json.expires_in_minutes + ' minutes');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{userToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_id\": {{eventId}},\n  \"identity_id\": \"{{identityId}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/tickets/request",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "tickets",
+            "request"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Tickets - Confirm Ticket",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "if (json.token_id) pm.collectionVariables.set('tokenId', json.token_id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{userToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_id\": {{eventId}},\n  \"identity_id\": \"{{identityId}}\",\n  \"otp\": \"{{ticketOtp}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/tickets/confirm",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "tickets",
+            "confirm"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Tickets - Get My Tickets",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{userToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/tickets/my-tickets",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "tickets",
+            "my-tickets"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Gate - Entry Verification",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "if (json.message) console.log('Gate Entry: ' + json.message);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"token_id\": {{tokenId}},\n  \"identity_id\": \"{{identityId}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/gate/entry",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "gate",
+            "entry"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Gate - Verify Entry",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"token_id\": {{tokenId}},\n  \"identity_id\": \"{{identityId}}\",\n  \"otp\": \"{{ticketOtp}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/gate/verify-entry",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "gate",
+            "verify-entry"
           ]
         }
       }
