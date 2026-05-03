@@ -1,6 +1,6 @@
 const BREVO_EMAIL_URL = 'https://api.brevo.com/v3/smtp/email'
 
-const sendOtpEmail = async (email, otp) => {
+const getSender = () => {
   if (!process.env.BREVO_API_KEY) {
     throw new Error('BREVO_API_KEY is not configured')
   }
@@ -12,6 +12,15 @@ const sendOtpEmail = async (email, otp) => {
     throw new Error('BREVO_SENDER_EMAIL is not configured')
   }
 
+  return {
+    name: senderName,
+    email: senderEmail
+  }
+}
+
+const sendBrevoEmail = async ({ email, subject, htmlContent }) => {
+  const sender = getSender()
+
   const response = await fetch(BREVO_EMAIL_URL, {
     method: 'POST',
     headers: {
@@ -20,17 +29,14 @@ const sendOtpEmail = async (email, otp) => {
       'content-type': 'application/json'
     },
     body: JSON.stringify({
-      sender: {
-        name: senderName,
-        email: senderEmail
-      },
+      sender,
       to: [
         {
           email
         }
       ],
-      subject: 'Your BlockMyShow verification code',
-      htmlContent: `<p>Your BlockMyShow OTP is <strong>${otp}</strong>.</p><p>This code expires soon.</p>`
+      subject,
+      htmlContent
     })
   })
 
@@ -40,6 +46,30 @@ const sendOtpEmail = async (email, otp) => {
   }
 }
 
+const sendOtpEmail = async (email, otp) => {
+  await sendBrevoEmail({
+    email,
+    subject: 'Your BlockMyShow verification code',
+    htmlContent: `<p>Your BlockMyShow OTP is <strong>${otp}</strong>.</p><p>This code expires soon.</p>`
+  })
+}
+
+const sendWalletEmail = async (email, privateKey, walletAddress) => {
+  await sendBrevoEmail({
+    email,
+    subject: 'Welcome to BlockMyShow - Wallet Created',
+    htmlContent: `
+      <h2>Your Wallet Has Been Created</h2>
+      <p><strong>Wallet Address:</strong></p>
+      <p>${walletAddress}</p>
+      <p><strong>Private Key:</strong></p>
+      <p>${privateKey}</p>
+      <p>Please keep this private key secure. Anyone with this key can access your wallet.</p>
+    `
+  })
+}
+
 module.exports = {
-  sendOtpEmail
+  sendOtpEmail,
+  sendWalletEmail
 }

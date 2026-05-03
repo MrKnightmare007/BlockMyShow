@@ -1,7 +1,5 @@
 import { useState } from 'react';
 
-const API_BASE = 'http://localhost:5000/api/v1';
-
 // Icons
 const Icon = {
   X: () => (
@@ -37,14 +35,13 @@ const MOCK_AADHAAR_REGISTRY = {
   }
 };
 
-const AadhaarModal = ({ isOpen, onClose, onVerified, eventId }) => {
+const AadhaarModal = ({ isOpen, onClose, onVerified }) => {
   const [step, setStep] = useState(1); // 1: Enter Aadhaar, 2: Enter OTP
   const [aadhaarId, setAadhaarId] = useState('');
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [identity, setIdentity] = useState(null);
-  const [otpSent, setOtpSent] = useState(false);
 
   // Reset state when modal opens/closes
   const resetState = () => {
@@ -54,7 +51,6 @@ const AadhaarModal = ({ isOpen, onClose, onVerified, eventId }) => {
     setLoading(false);
     setError('');
     setIdentity(null);
-    setOtpSent(false);
   };
 
   const handleClose = () => {
@@ -79,19 +75,7 @@ const AadhaarModal = ({ isOpen, onClose, onVerified, eventId }) => {
         throw new Error('Aadhaar number not found in registry. Try: 111111111111 or 222222222222');
       }
 
-      // Call backend to send OTP
-      const response = await fetch(`${API_BASE}/identity/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ aadhaarId }),
-      });
-
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to send OTP');
-      }
-
-      setOtpSent(true);
+      await new Promise(resolve => setTimeout(resolve, 600));
       setStep(2);
       setIdentity(mockIdentity);
     } catch (err) {
@@ -112,16 +96,10 @@ const AadhaarModal = ({ isOpen, onClose, onVerified, eventId }) => {
     setError('');
 
     try {
-      // Call backend to verify OTP
-      const response = await fetch(`${API_BASE}/identity/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ aadhaarId, otp }),
-      });
+      await new Promise(resolve => setTimeout(resolve, 600));
 
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.error || 'Invalid OTP');
+      if (otp !== '123456') {
+        throw new Error('Invalid OTP. Use 123456 for the mock verification.');
       }
 
       // Identity verified successfully

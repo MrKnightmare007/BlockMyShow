@@ -5,7 +5,11 @@ const {
   createSignupOtp,
   verifySignupOtp
 } = require('../service/otpService')
-const { sendOtpEmail } = require('../service/mailService')
+const {
+  sendOtpEmail,
+  sendWalletEmail
+} = require('../service/mailService')
+const { generateWallet } = require('../utils/generateWallet')
 
 const sanitizeUser = (user) => {
   if (!user) return user
@@ -17,7 +21,7 @@ const sanitizeUser = (user) => {
 const buildUserToken = (user) => {
   return generateToken({
     id: user.$id,
-    role: user.role || 'user'
+    role: 'user'
   })
 }
 
@@ -64,11 +68,14 @@ const auth = async (req, res) => {
       }
 
       const hashedPassword = await hashPassword(password)
+      const wallet = generateWallet()
+
+      await sendWalletEmail(normalizedEmail, wallet.privateKey, wallet.address)
 
       const user = await createUser({
         email: normalizedEmail,
         password: hashedPassword,
-        role: 'user'
+        wallet_address: wallet.address
       })
 
       const token = buildUserToken(user)
@@ -77,6 +84,7 @@ const auth = async (req, res) => {
         success: true,
         message: 'Signup verified successfully',
         token,
+        wallet_address: wallet.address,
         user: sanitizeUser(user)
       })
     }

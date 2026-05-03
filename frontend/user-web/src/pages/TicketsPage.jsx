@@ -1,7 +1,4 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
-
-const API_BASE = 'http://localhost:5000/api/v1';
+import { useState } from 'react';
 
 // Icons
 const Icon = {
@@ -33,8 +30,7 @@ const MOCK_TICKETS = [
 ];
 
 const TicketsPage = () => {
-  const { user } = useAuth();
-  const [tickets, setTickets] = useState(MOCK_TICKETS);
+  const [tickets] = useState(MOCK_TICKETS);
 
   return (
     <div style={{ minHeight: '100vh', background: '#fafafa', padding: '2rem' }}>

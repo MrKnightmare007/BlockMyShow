@@ -1,7 +1,5 @@
 import { useState } from 'react';
 
-const API_BASE = 'http://localhost:5000/api/v1';
-
 // Icons
 const Icon = {
   X: () => (
@@ -86,78 +84,16 @@ const PaymentModal = ({ isOpen, onClose, event, userWallet, identity, onPaymentS
     setStep(3); // Processing
 
     try {
-      // Step 1: Create payment order
-      const orderResponse = await fetch(`${API_BASE}/payment/create-order`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        },
-        body: JSON.stringify({
-          eventId: event.id,
-          quantity: 1,
-          totalAmount: totalAmount,
-          currency: 'INR'
-        }),
-      });
-
-      const orderData = await orderResponse.json();
-      if (!orderData.success) {
-        throw new Error(orderData.error || 'Failed to create payment order');
-      }
-
-      // Simulate payment processing delay
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Step 2: Mock payment success (in real implementation, this would be Razorpay)
+      const mockOrderId = 'order_' + Math.random().toString(36).slice(2, 11);
       const mockPaymentId = 'pay_' + Math.random().toString(36).substr(2, 9);
-      const mockSignature = 'sig_' + Math.random().toString(36).substr(2, 16);
 
-      // Step 3: Verify payment
-      const verifyResponse = await fetch(`${API_BASE}/payment/verify`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        },
-        body: JSON.stringify({
-          orderId: orderData.order.razorpayOrderId,
-          paymentId: mockPaymentId,
-          signature: mockSignature
-        }),
-      });
-
-      const verifyData = await verifyResponse.json();
-      if (!verifyData.success) {
-        throw new Error(verifyData.error || 'Payment verification failed');
-      }
-
-      // Step 4: Mint NFT ticket
-      const mintResponse = await fetch(`${API_BASE}/tickets/mint`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        },
-        body: JSON.stringify({
-          eventId: event.id,
-          paymentId: mockPaymentId,
-          aadhaarId: identity.aadhaarId,
-          secret: 'user_secret_' + Date.now()
-        }),
-      });
-
-      const mintData = await mintResponse.json();
-      if (!mintData.success) {
-        throw new Error(mintData.error || 'Failed to mint NFT ticket');
-      }
-
-      // Success!
       const successData = {
-        orderId: orderData.order.orderId,
+        orderId: mockOrderId,
         paymentId: mockPaymentId,
-        tokenId: mintData.ticket?.tokenId || Math.floor(Math.random() * 10000) + 1000,
-        transactionHash: mintData.ticket?.transactionHash || '0x' + Math.random().toString(16).substr(2, 64),
+        tokenId: Math.floor(Math.random() * 10000) + 1000,
+        transactionHash: '0x' + Math.random().toString(16).slice(2).padEnd(64, '0'),
         amount: totalAmount,
         event: event,
         identity: identity

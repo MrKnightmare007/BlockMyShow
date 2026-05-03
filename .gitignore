@@ -26,6 +26,8 @@ out/
 
 # IDE & Editor
 .vscode/*
+.codex/*
+.agents/*
 !.vscode/extensions.json
 .idea/
 *.suo

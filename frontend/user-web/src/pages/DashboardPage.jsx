@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import AadhaarModal from '../components/AadhaarModal';
 import PaymentModal from '../components/PaymentModal';
 
-const API_BASE = 'http://localhost:5000/api/v1';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
 // Icons
 const Icon = {
@@ -40,95 +40,41 @@ const Icon = {
   ),
 };
 
-// Mock Events Data
-const MOCK_EVENTS = [
-  { 
-    id: 'event_1', 
-    title: 'Web3 Summit Mumbai 2024', 
-    price: 2500, 
-    totalTickets: 1000, 
-    ticketsMinted: 450, 
-    date: '2024-06-15T10:00:00Z', 
-    venue: 'Mumbai Convention Centre', 
-    description: 'Annual Web3 conference featuring top blockchain developers, investors, and innovators from around the world.',
-    image: '#4a90e2',
-    category: 'Technology',
-    organizer: 'Web3 Foundation'
-  },
-  { 
-    id: 'event_2', 
-    title: 'NFT Art Exhibition Delhi', 
-    price: 800, 
-    totalTickets: 300, 
-    ticketsMinted: 180, 
-    date: '2024-07-20T18:00:00Z', 
-    venue: 'Delhi Art Gallery', 
-    description: 'Showcase of emerging NFT artists and digital art collections with live minting sessions.',
-    image: '#ec4899',
-    category: 'Art',
-    organizer: 'Digital Art Collective'
-  },
-  { 
-    id: 'event_3', 
-    title: 'Blockchain Bootcamp IIT Bombay', 
-    price: 5000, 
-    totalTickets: 100, 
-    ticketsMinted: 45, 
-    date: '2024-08-05T09:00:00Z', 
-    venue: 'IIT Bombay Campus', 
-    description: 'Intensive 3-day blockchain development course covering Solidity, DeFi, and dApp development.',
-    image: '#10b981',
-    category: 'Education',
-    organizer: 'IIT Bombay'
-  },
-  { 
-    id: 'event_4', 
-    title: 'DeFi Conference Bangalore', 
-    price: 1500, 
-    totalTickets: 500, 
-    ticketsMinted: 320, 
-    date: '2024-09-10T14:00:00Z', 
-    venue: 'Bangalore Tech Park', 
-    description: 'Explore the future of decentralized finance with industry leaders and protocol developers.',
-    image: '#f59e0b',
-    category: 'Finance',
-    organizer: 'DeFi Alliance'
-  },
-  { 
-    id: 'event_5', 
-    title: 'Crypto Gaming Expo', 
-    price: 1200, 
-    totalTickets: 800, 
-    ticketsMinted: 600, 
-    date: '2024-10-15T11:00:00Z', 
-    venue: 'Hyderabad Gaming Arena', 
-    description: 'Gaming meets blockchain - discover play-to-earn games, NFT gaming assets, and metaverse experiences.',
-    image: '#8b5cf6',
-    category: 'Gaming',
-    organizer: 'GameFi Studios'
-  },
-  { 
-    id: 'event_6', 
-    title: 'Smart Contract Security Workshop', 
-    price: 3500, 
-    totalTickets: 150, 
-    ticketsMinted: 89, 
-    date: '2024-11-20T10:00:00Z', 
-    venue: 'Chennai Tech Hub', 
-    description: 'Learn smart contract auditing, security best practices, and vulnerability assessment techniques.',
-    image: '#ef4444',
-    category: 'Security',
-    organizer: 'CyberSec Academy'
-  }
-];
+const EVENT_COLORS = ['#4a90e2', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'];
+
+const normalizeEvent = (event, index) => {
+  const eventDate = Number(event.date);
+
+  return {
+    ...event,
+    id: String(event.eventId),
+    eventId: event.eventId,
+    title: event.title,
+    price: Number(event.price),
+    totalTickets: Number(event.totalTickets),
+    ticketsMinted: Number(event.ticketsMinted),
+    date: Number.isFinite(eventDate)
+      ? new Date(eventDate * 1000).toISOString()
+      : event.date,
+    venue: event.venue,
+    description: event.metadataURI
+      ? `On-chain event metadata: ${event.metadataURI}`
+      : 'Blockchain-backed event ticketed through BlockMyShow.',
+    image: EVENT_COLORS[index % EVENT_COLORS.length],
+    category: 'On Chain',
+    organizer: 'BlockMyShow',
+    metadataURI: event.metadataURI
+  };
+};
 
 const DashboardPage = () => {
-  const { user, walletAddress } = useAuth();
-  const [events, setEvents] = useState(MOCK_EVENTS);
-  const [filteredEvents, setFilteredEvents] = useState(MOCK_EVENTS);
+  const { walletAddress, isAuthenticated } = useAuth();
+  const [events, setEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [loadingEvents, setLoadingEvents] = useState(true);
+  const [eventsError, setEventsError] = useState('');
   const [showAadhaarModal, setShowAadhaarModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [bookingFlow, setBookingFlow] = useState({
@@ -137,11 +83,37 @@ const DashboardPage = () => {
     identity: null,
   });
 
+  useEffect(() => {
+    const fetchEvents = async () => {
+      setLoadingEvents(true);
+      setEventsError('');
+
+      try {
+        const response = await fetch(`${API_BASE}/events`);
+        const data = await response.json();
+
+        if (!data.success) {
+          throw new Error(data.message || data.error || 'Failed to load events');
+        }
+
+        const normalizedEvents = (data.events || []).map(normalizeEvent);
+        setEvents(normalizedEvents);
+      } catch (err) {
+        setEventsError(err.message);
+        setEvents([]);
+      } finally {
+        setLoadingEvents(false);
+      }
+    };
+
+    fetchEvents();
+  }, []);
+
   // Get unique categories
   const categories = ['All', ...new Set(events.map(event => event.category))];
 
   // Filter events based on search and category
-  useEffect(() => {
+  const filteredEvents = useMemo(() => {
     let filtered = events;
     
     if (searchTerm) {
@@ -156,7 +128,7 @@ const DashboardPage = () => {
       filtered = filtered.filter(event => event.category === selectedCategory);
     }
     
-    setFilteredEvents(filtered);
+    return filtered;
   }, [searchTerm, selectedCategory, events]);
 
   // Format date for display
@@ -176,6 +148,12 @@ const DashboardPage = () => {
   };
 
   const handleBookTicket = () => {
+    if (!isAuthenticated) {
+      // Redirect to auth page if not logged in
+      window.location.href = '/auth';
+      return;
+    }
+    
     setBookingFlow({
       event: selectedEvent,
       identityVerified: false,
@@ -207,13 +185,106 @@ const DashboardPage = () => {
 
   return (
     <div style={{ minHeight: '100vh', background: '#fafafa' }}>
+      {/* Public Header with Login/Signup */}
+      {!isAuthenticated && (
+        <div style={{
+          background: '#000',
+          color: '#fff',
+          padding: '1rem 2rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <div style={{
+            fontFamily: 'Syne, sans-serif',
+            fontSize: '1.25rem',
+            fontWeight: 'bold'
+          }}>
+            BlockMyShow
+          </div>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              onClick={() => window.location.href = '/auth'}
+              style={{
+                padding: '8px 16px',
+                background: 'transparent',
+                color: '#fff',
+                border: '2px solid #fff',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontFamily: 'monospace',
+                fontSize: '12px',
+                fontWeight: 'bold'
+              }}
+            >
+              Login
+            </button>
+            <button
+              onClick={() => window.location.href = '/auth'}
+              style={{
+                padding: '8px 16px',
+                background: '#fff',
+                color: '#000',
+                border: '2px solid #fff',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontFamily: 'monospace',
+                fontSize: '12px',
+                fontWeight: 'bold'
+              }}
+            >
+              Sign Up
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Navbar for authenticated users */}
+      {isAuthenticated && (
+        <div style={{
+          background: '#000',
+          color: '#fff',
+          padding: '0 2rem',
+          height: '56px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: '3px solid #000',
+          position: 'sticky',
+          top: 0,
+          zIndex: 50
+        }}>
+          <div style={{
+            fontFamily: 'Syne, sans-serif',
+            fontSize: '1.25rem'
+          }}>
+            BlockMyShow
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+            <a href="/" style={{ color: '#4a90e2', textDecoration: 'none', fontSize: '14px' }}>Events</a>
+            <a href="/tickets" style={{ color: '#fff', textDecoration: 'none', fontSize: '14px' }}>My Tickets</a>
+            <div style={{
+              background: 'rgba(255,255,255,0.1)',
+              padding: '6px 10px',
+              borderRadius: '4px',
+              fontSize: '11px'
+            }}>
+              <div style={{ opacity: 0.7 }}>Wallet</div>
+              <div style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>
+                {walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : 'No wallet'}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ 
         background: '#fff', 
         padding: '2rem', 
         borderBottom: '3px solid #000',
         position: 'sticky',
-        top: '56px',
+        top: isAuthenticated ? '56px' : '0',
         zIndex: 10
       }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
@@ -329,7 +400,27 @@ const DashboardPage = () => {
         margin: '0 auto', 
         width: '100%' 
       }}>
-        {filteredEvents.length === 0 ? (
+        {loadingEvents ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '4rem 2rem',
+            color: '#666'
+          }}>
+            <Icon.Ticket />
+            <h3 style={{ marginTop: '1rem', marginBottom: '0.5rem' }}>Loading events</h3>
+            <p>Reading public events from the smart contract</p>
+          </div>
+        ) : eventsError ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '4rem 2rem',
+            color: '#dc2626'
+          }}>
+            <Icon.Search />
+            <h3 style={{ marginTop: '1rem', marginBottom: '0.5rem' }}>Could not load events</h3>
+            <p>{eventsError}</p>
+          </div>
+        ) : filteredEvents.length === 0 ? (
           <div style={{ 
             textAlign: 'center', 
             padding: '4rem 2rem',

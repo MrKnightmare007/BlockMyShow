@@ -3,13 +3,14 @@ import { AuthProvider } from './context/AuthContext';
 import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
 import TicketsPage from './pages/TicketsPage';
+import ManageEventsPage from './pages/ManageEventsPage';
 import Navbar from './components/Navbar';
 import { useAuth } from './context/AuthContext';
 import './App.css';
 
 // Main App Content with Routing
 const AppContent = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, isAdmin } = useAuth();
 
   if (isLoading) {
     return (
@@ -30,20 +31,34 @@ const AppContent = () => {
 
   return (
     <div style={{ fontFamily: 'Space Mono, monospace' }}>
-      {isAuthenticated ? (
-        <>
-          <Navbar />
-          <Routes>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/tickets" element={<TicketsPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </>
-      ) : (
-        <Routes>
-          <Route path="*" element={<AuthPage />} />
-        </Routes>
-      )}
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/auth" element={<AuthPage />} />
+        
+        {/* Protected Routes */}
+        <Route path="/tickets" element={
+          isAuthenticated ? (
+            <>
+              <Navbar />
+              <TicketsPage />
+            </>
+          ) : <Navigate to="/auth" replace />
+        } />
+        <Route
+          path="/admin/events"
+          element={
+            isAuthenticated && isAdmin ? (
+              <>
+                <Navbar />
+                <ManageEventsPage />
+              </>
+            ) : <Navigate to="/auth" replace />
+          }
+        />
+        
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </div>
   );
 };

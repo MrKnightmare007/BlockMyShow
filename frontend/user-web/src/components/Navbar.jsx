@@ -24,12 +24,13 @@ const Icon = {
 };
 
 const Navbar = () => {
-  const { user, walletAddress, logout } = useAuth();
+  const { user, walletAddress, accountType, isAdmin, logout } = useAuth();
   const location = useLocation();
 
   const navItems = [
     { path: '/', label: 'Events', icon: Icon.Home },
     { path: '/tickets', label: 'My Tickets', icon: Icon.Ticket },
+    ...(isAdmin ? [{ path: '/admin/events', label: 'Manage Events', icon: Icon.Home }] : []),
   ];
 
   return (
@@ -95,9 +96,13 @@ const Navbar = () => {
             borderRadius: '4px', 
             fontSize: '11px' 
           }}>
-            <div style={{ opacity: 0.7 }}>Wallet</div>
+            <div style={{ opacity: 0.7 }}>{isAdmin ? 'Admin' : 'Wallet'}</div>
             <div style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>
-              {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
+              {isAdmin
+                ? user?.username || accountType
+                : walletAddress
+                  ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
+                  : 'No wallet'}
             </div>
           </div>
           

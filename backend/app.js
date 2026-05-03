@@ -4,6 +4,7 @@ require('./config/env')
 
 const userRoutes = require('./routes/userRoutes')
 const adminRoutes = require('./routes/adminRoutes')
+const eventRoutes = require('./routes/eventRoutes')
 
 const app = express()
 
@@ -12,6 +13,7 @@ app.use(express.json())
 
 app.use('/api/user', userRoutes)
 app.use('/api/admin', adminRoutes)
+app.use('/api/events', eventRoutes)
 
 app.get('/', (req, res) => {
   res.send('API Running')

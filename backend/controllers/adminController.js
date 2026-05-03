@@ -1,4 +1,4 @@
-const { getAdminByEmail } = require('../models/adminModel')
+const { getAdminByUsername } = require('../models/adminModel')
 const { comparePassword } = require('../utils/hash')
 const { generateToken } = require('../service/jwtService')
 
@@ -13,17 +13,17 @@ const adminLogin = async (req, res) => {
 
   try {
 
-    const { email, password } = req.body
+    const { username, password } = req.body
 
-    if (!email || !password) {
+    if (!username || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Email and password are required'
+        message: 'Username and password are required'
       })
     }
 
-    const normalizedEmail = email.trim().toLowerCase()
-    const admin = await getAdminByEmail(normalizedEmail)
+    const normalizedUsername = username.trim().toLowerCase()
+    const admin = await getAdminByUsername(normalizedUsername)
 
     if (!admin) {
       return res.status(404).json({

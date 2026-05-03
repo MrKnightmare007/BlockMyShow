@@ -26,8 +26,8 @@
       "value": ""
     },
     {
-      "key": "adminEmail",
-      "value": "admin@example.com"
+      "key": "adminUsername",
+      "value": "admin1"
     },
     {
       "key": "adminPassword",
@@ -35,6 +35,10 @@
     },
     {
       "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "eventId",
       "value": ""
     }
   ],
@@ -184,7 +188,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+          "raw": "{\n  \"username\": \"{{adminUsername}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/api/admin/login",
@@ -195,6 +199,127 @@
             "api",
             "admin",
             "login"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Events - Get All",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/events",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "events"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Events - Get One",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/events/{{eventId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "events",
+            "{{eventId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Events - Create Admin",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "if (json.event && json.event.$id) pm.collectionVariables.set('eventId', json.event.$id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"BlockMyShow Launch Night\",\n  \"venue\": \"Kolkata\",\n  \"date\": \"2026-06-01T18:00:00.000Z\",\n  \"price\": 499,\n  \"totalTickets\": 100,\n  \"metadataURI\": \"ipfs://event-metadata\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/events",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "events"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Events - Update Metadata Admin",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"metadataURI\": \"ipfs://updated-event-metadata\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/events/{{eventId}}/metadata",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "events",
+            "{{eventId}}",
+            "metadata"
           ]
         }
       }
