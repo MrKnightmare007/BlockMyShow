@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import AadhaarModal from '../components/AadhaarModal';
 import PaymentModal from '../components/PaymentModal';
+import EventCard from '../components/EventCard';
+import { useLocation as useAppLocation } from '../context/LocationContext';
+import { useCurrency, CRYPTO_CONFIG } from '../context/CurrencyContext';
 import toast from 'react-hot-toast';
 
 const API_BASE = 'http://localhost:5000/api/v1';
@@ -51,6 +54,7 @@ const MOCK_EVENTS = [
     ticketsMinted: 450, 
     date: '2024-06-15T10:00:00Z', 
     venue: 'Mumbai Convention Centre', 
+    city: 'Mumbai',
     description: 'Annual Web3 conference featuring top blockchain developers, investors, and innovators from around the world.',
     image: '#4a90e2',
     category: 'Technology',
@@ -64,6 +68,7 @@ const MOCK_EVENTS = [
     ticketsMinted: 180, 
     date: '2024-07-20T18:00:00Z', 
     venue: 'Delhi Art Gallery', 
+    city: 'Delhi',
     description: 'Showcase of emerging NFT artists and digital art collections with live minting sessions.',
     image: '#ec4899',
     category: 'Art',
@@ -77,6 +82,7 @@ const MOCK_EVENTS = [
     ticketsMinted: 45, 
     date: '2024-08-05T09:00:00Z', 
     venue: 'IIT Bombay Campus', 
+    city: 'Mumbai',
     description: 'Intensive 3-day blockchain development course covering Solidity, DeFi, and dApp development.',
     image: '#10b981',
     category: 'Education',
@@ -90,6 +96,7 @@ const MOCK_EVENTS = [
     ticketsMinted: 320, 
     date: '2024-09-10T14:00:00Z', 
     venue: 'Bangalore Tech Park', 
+    city: 'Bangalore',
     description: 'Explore the future of decentralized finance with industry leaders and protocol developers.',
     image: '#f59e0b',
     category: 'Finance',
@@ -97,12 +104,13 @@ const MOCK_EVENTS = [
   },
   { 
     id: 'event_5', 
-    title: 'Crypto Gaming Expo', 
+    title: 'Crypto Gaming Expo Hyderabad', 
     price: 1200, 
     totalTickets: 800, 
     ticketsMinted: 600, 
     date: '2024-10-15T11:00:00Z', 
     venue: 'Hyderabad Gaming Arena', 
+    city: 'Hyderabad',
     description: 'Gaming meets blockchain - discover play-to-earn games, NFT gaming assets, and metaverse experiences.',
     image: '#8b5cf6',
     category: 'Gaming',
@@ -116,20 +124,53 @@ const MOCK_EVENTS = [
     ticketsMinted: 89, 
     date: '2024-11-20T10:00:00Z', 
     venue: 'Chennai Tech Hub', 
+    city: 'Chennai',
     description: 'Learn smart contract auditing, security best practices, and vulnerability assessment techniques.',
     image: '#ef4444',
     category: 'Security',
     organizer: 'CyberSec Academy'
+  },
+  { 
+    id: 'event_7', 
+    title: 'Kolkata Web3 Meetup', 
+    price: 0, 
+    totalTickets: 200, 
+    ticketsMinted: 150, 
+    date: '2024-12-05T17:00:00Z', 
+    venue: 'Salt Lake Sector V', 
+    city: 'Kolkata',
+    description: 'Networking event for blockchain enthusiasts and developers in the City of Joy.',
+    image: '#31bbaf',
+    category: 'Technology',
+    organizer: 'Kolkata Crypto'
+  },
+  { 
+    id: 'event_8', 
+    title: 'NFT Music Fest Kolkata', 
+    price: 1200, 
+    totalTickets: 500, 
+    ticketsMinted: 120, 
+    date: '2025-01-12T19:00:00Z', 
+    venue: 'Nicco Park Big Lawn', 
+    city: 'Kolkata',
+    description: 'Live music performances with NFT-gated access and exclusive artist drops.',
+    image: '#a855f7',
+    category: 'Entertainment',
+    organizer: 'Music3'
   }
 ];
 
 const DashboardPage = () => {
   const { user, walletAddress } = useAuth();
+  const { selectedCity } = useAppLocation();
+  const { selectedCrypto, setSelectedCrypto, convertInrToCrypto, cryptoList } = useCurrency();
   const [events, setEvents] = useState(MOCK_EVENTS);
   const [filteredEvents, setFilteredEvents] = useState(MOCK_EVENTS);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [priceRange, setPriceRange] = useState({ min: 0, max: 10000 });
+  const [dateFilter, setDateFilter] = useState('All');
   const [showAadhaarModal, setShowAadhaarModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [bookingFlow, setBookingFlow] = useState({
@@ -141,10 +182,16 @@ const DashboardPage = () => {
   // Get unique categories
   const categories = ['All', ...new Set(events.map(event => event.category))];
 
-  // Filter events based on search and category
+  // Filter events based on search, category, city, price, and date
   useEffect(() => {
     let filtered = events;
     
+    // City filter
+    if (selectedCity) {
+      filtered = filtered.filter(event => event.city === selectedCity);
+    }
+
+    // Search filter
     if (searchTerm) {
       filtered = filtered.filter(event => 
         event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -153,12 +200,46 @@ const DashboardPage = () => {
       );
     }
     
+    // Category filter
     if (selectedCategory !== 'All') {
       filtered = filtered.filter(event => event.category === selectedCategory);
     }
+
+    // Price filter
+    filtered = filtered.filter(event => 
+      event.price >= priceRange.min && event.price <= priceRange.max
+    );
+
+    // Date filter
+    if (dateFilter !== 'All') {
+      const now = new Date();
+      const today = new Date(now.setHours(0, 0, 0, 0));
+      
+      filtered = filtered.filter(event => {
+        const eventDate = new Date(event.date);
+        
+        if (dateFilter === 'Today') {
+          return eventDate.toDateString() === today.toDateString();
+        }
+        
+        if (dateFilter === 'This Week') {
+          const nextWeek = new Date(today);
+          nextWeek.setDate(today.getDate() + 7);
+          return eventDate >= today && eventDate <= nextWeek;
+        }
+        
+        if (dateFilter === 'This Month') {
+          const nextMonth = new Date(today);
+          nextMonth.setMonth(today.getMonth() + 1);
+          return eventDate >= today && eventDate <= nextMonth;
+        }
+        
+        return true;
+      });
+    }
     
     setFilteredEvents(filtered);
-  }, [searchTerm, selectedCategory, events]);
+  }, [searchTerm, selectedCategory, selectedCity, priceRange, dateFilter, events]);
 
   // Format date for display
   const formatDate = (dateString) => {
@@ -263,8 +344,6 @@ const DashboardPage = () => {
                   outline: 'none',
                   cursor: 'pointer'
                 }}
-                onFocus={e => e.target.style.borderColor = 'var(--primary)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border)'}
               >
                 {categories.map(category => (
                   <option key={category} value={category}>
@@ -272,6 +351,86 @@ const DashboardPage = () => {
                   </option>
                 ))}
               </select>
+            </div>
+
+            {/* Price Filter */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', textTransform: 'uppercase' }}>
+                Price Range (₹{priceRange.min} - ₹{priceRange.max})
+              </label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input
+                  type="number"
+                  placeholder="Min"
+                  value={priceRange.min}
+                  onChange={(e) => setPriceRange(prev => ({ ...prev, min: parseInt(e.target.value) || 0 }))}
+                  style={{
+                    width: '50%',
+                    padding: '8px',
+                    border: '2px solid var(--border)',
+                    background: 'var(--input-bg)',
+                    color: 'var(--text)',
+                    fontSize: '12px',
+                    fontFamily: 'var(--font-mono)',
+                    outline: 'none'
+                  }}
+                />
+                <span style={{ fontWeight: 'bold' }}>-</span>
+                <input
+                  type="number"
+                  placeholder="Max"
+                  value={priceRange.max}
+                  onChange={(e) => setPriceRange(prev => ({ ...prev, max: parseInt(e.target.value) || 0 }))}
+                  style={{
+                    width: '50%',
+                    padding: '8px',
+                    border: '2px solid var(--border)',
+                    background: 'var(--input-bg)',
+                    color: 'var(--text)',
+                    fontSize: '12px',
+                    fontFamily: 'var(--font-mono)',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+              <input 
+                type="range" 
+                min="0" 
+                max="10000" 
+                step="500"
+                value={priceRange.max}
+                onChange={(e) => setPriceRange(prev => ({ ...prev, max: parseInt(e.target.value) }))}
+                style={{ width: '100%', marginTop: '12px', cursor: 'pointer', accentColor: 'var(--primary)' }}
+              />
+            </div>
+
+            {/* Date Filter */}
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', textTransform: 'uppercase' }}>Timeframe</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {['All', 'Today', 'This Week', 'This Month'].map(period => (
+                  <button
+                    key={period}
+                    onClick={() => setDateFilter(period)}
+                    style={{
+                      flex: '1 1 45%',
+                      padding: '8px',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      textTransform: 'uppercase',
+                      background: dateFilter === period ? 'var(--primary)' : 'var(--surface)',
+                      color: dateFilter === period ? '#000' : 'var(--text)',
+                      border: '2px solid var(--border)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      boxShadow: dateFilter === period ? '2px 2px 0 var(--border)' : 'none',
+                      transform: dateFilter === period ? 'translate(-1px, -1px)' : 'none'
+                    }}
+                  >
+                    {period}
+                  </button>
+                ))}
+              </div>
             </div>
             
             {/* Results Count */}
@@ -285,98 +444,19 @@ const DashboardPage = () => {
         <div style={{ flex: '3 1 0%' }}>
           {filteredEvents.length === 0 ? (
             <div className="brutal-card" style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--muted)' }}>
-              <Icon.Search />
+              <div style={{ fontSize: '32px', marginBottom: '1rem' }}>🔍</div>
               <h3 style={{ marginTop: '1rem', marginBottom: '0.5rem', textTransform: 'uppercase' }}>No events found</h3>
               <p>Try adjusting your search or filter criteria</p>
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px' }}>
-              {filteredEvents.map(event => {
-                const { date, time } = formatDate(event.date);
-                const soldPercentage = (event.ticketsMinted / event.totalTickets) * 100;
-                const remaining = event.totalTickets - event.ticketsMinted;
-                
-                return (
-                  <div 
-                    key={event.id} 
-                    onClick={() => setSelectedEvent(event)} 
-                    className="brutal-card"
-                    style={{ cursor: 'pointer', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} 
-                  >
-                    {/* Event Image */}
-                    <div style={{ height: '180px', background: event.image, position: 'relative', borderBottom: '3px solid var(--border)' }}>
-                      <div style={{ position: 'absolute', top: '12px', right: '12px', background: '#000', color: '#fff', padding: '6px 12px', border: '2px solid #fff', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                        {event.category}
-                      </div>
-                      {remaining < 50 && (
-                        <div style={{ position: 'absolute', bottom: '12px', left: '12px', background: 'var(--error, #ef4444)', color: '#fff', border: '2px solid #fff', padding: '6px 12px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                          Only {remaining} left!
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Event Details */}
-                    <div style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', marginBottom: '10px', lineHeight: 1.2, height: '3rem', overflow: 'hidden' }}>
-                        {event.title}
-                      </h3>
-                      
-                      <p style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '15px', height: '3.6rem', overflow: 'hidden', lineHeight: 1.5 }}>
-                        {event.description}
-                      </p>
-                      
-                      {/* Date and Venue */}
-                      <div style={{ fontSize: '11px', color: 'var(--text)', marginBottom: '15px', padding: '10px', background: 'var(--bg)', border: '2px solid var(--border)' }}>
-                        <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
-                          <Icon.Calendar /> {date} • {time}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
-                          <Icon.MapPin /> {event.venue}
-                        </div>
-                      </div>
-                      
-                      <div style={{ marginTop: 'auto' }}>
-                        {/* Organizer */}
-                        <div style={{ fontSize: '10px', color: 'var(--muted)', marginBottom: '12px', textTransform: 'uppercase' }}>
-                          by {event.organizer}
-                        </div>
-                        
-                        {/* Availability Bar */}
-                        <div style={{ marginBottom: '15px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '6px', fontWeight: 'bold' }}>
-                            <span>{remaining} AVAIL</span>
-                            <span>{Math.round(soldPercentage)}% SOLD</span>
-                          </div>
-                          <div style={{ background: 'var(--bg)', border: '2px solid var(--border)', height: '12px', overflow: 'hidden' }}>
-                            <div style={{ background: soldPercentage > 80 ? '#ef4444' : soldPercentage > 50 ? '#f59e0b' : 'var(--primary)', height: '100%', width: `${soldPercentage}%`, transition: 'width 0.3s' }} />
-                          </div>
-                        </div>
-                        
-                        {/* Price and Action */}
-                        <div style={{ borderTop: '3px solid var(--border)', paddingTop: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div>
-                            <div style={{ fontWeight: 'bold', fontSize: '1.25rem' }}>
-                              ₹{event.price.toLocaleString()}
-                            </div>
-                            <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase' }}>
-                              per ticket
-                            </div>
-                          </div>
-                          <div className={remaining === 0 ? "" : "brutal-btn"} style={{
-                            background: remaining === 0 ? 'var(--muted)' : 'var(--primary)',
-                            color: '#000', padding: '10px 16px', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px',
-                            border: remaining === 0 ? '2px solid var(--border)' : '',
-                            textTransform: 'uppercase'
-                          }}>
-                            <Icon.Ticket />
-                            {remaining === 0 ? 'Sold Out' : 'Book Now'}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              {filteredEvents.map(event => (
+                <EventCard 
+                  key={event.id} 
+                  event={event} 
+                  onSelect={setSelectedEvent} 
+                />
+              ))}
             </div>
           )}
         </div>
@@ -422,7 +502,39 @@ const DashboardPage = () => {
                 </div>
                 <div>
                   <div style={{ color: 'var(--muted)', marginBottom: '6px', textTransform: 'uppercase', fontWeight: 'bold' }}>Price</div>
-                  <div style={{ fontWeight: 'bold', fontSize: '20px', color: 'var(--primary)' }}>₹{selectedEvent.price.toLocaleString()}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '20px', color: 'var(--primary)' }}>₹{selectedEvent.price.toLocaleString()}</div>
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '6px',
+                      background: 'var(--surface)',
+                      padding: '4px 10px',
+                      border: '2px solid var(--border)',
+                      width: 'fit-content'
+                    }}>
+                      <select 
+                        value={selectedCrypto}
+                        onChange={(e) => setSelectedCrypto(e.target.value)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--primary)',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          outline: 'none'
+                        }}
+                      >
+                        {cryptoList.map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      <span style={{ fontSize: '13px', fontWeight: 'bold' }}>
+                        {CRYPTO_CONFIG[selectedCrypto].symbol} {convertInrToCrypto(selectedEvent.price, selectedCrypto)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <div style={{ color: 'var(--muted)', marginBottom: '6px', textTransform: 'uppercase', fontWeight: 'bold' }}>Availability</div>

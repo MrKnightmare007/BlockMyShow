@@ -1,6 +1,8 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { LocationProvider } from './context/LocationContext';
+import { CurrencyProvider } from './context/CurrencyContext';
 import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
 import ProfilePage from './pages/ProfilePage';
@@ -85,44 +87,48 @@ export default function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <AuthProvider>
-          <Router>
-            <Toaster 
-              position="top-right"
-              toastOptions={{
-                style: {
-                  background: '#000',
-                  color: '#fff',
-                  borderRadius: '4px',
-                  border: '2px solid #31bbaf',
-                  fontFamily: 'Space Mono, monospace',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  boxShadow: '4px 4px 0px #000',
-                },
-                success: {
+        <LocationProvider>
+          <CurrencyProvider>
+            <AuthProvider>
+            <Router>
+              <Toaster 
+                position="top-right"
+                toastOptions={{
                   style: {
+                    background: '#000',
+                    color: '#fff',
+                    borderRadius: '4px',
                     border: '2px solid #31bbaf',
+                    fontFamily: 'Space Mono, monospace',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    boxShadow: '4px 4px 0px #000',
                   },
-                  iconTheme: {
-                    primary: '#31bbaf',
-                    secondary: '#000',
+                  success: {
+                    style: {
+                      border: '2px solid #31bbaf',
+                    },
+                    iconTheme: {
+                      primary: '#31bbaf',
+                      secondary: '#000',
+                    },
                   },
-                },
-                error: {
-                  style: {
-                    border: '2px solid #ef4444',
+                  error: {
+                    style: {
+                      border: '2px solid #ef4444',
+                    },
+                    iconTheme: {
+                      primary: '#ef4444',
+                      secondary: '#000',
+                    },
                   },
-                  iconTheme: {
-                    primary: '#ef4444',
-                    secondary: '#000',
-                  },
-                },
-              }}
-            />
-            <AppContent />
-          </Router>
-        </AuthProvider>
+                }}
+              />
+              <AppContent />
+            </Router>
+          </AuthProvider>
+        </CurrencyProvider>
+      </LocationProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

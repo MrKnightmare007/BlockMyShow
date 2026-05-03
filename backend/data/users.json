@@ -94,5 +94,40 @@
       "phone": null
     },
     "createdAt": "2026-05-03T16:45:33.474Z"
+  },
+  {
+    "id": "user_1777840832290",
+    "email": null,
+    "walletAddress": "0x18d167cdc47e125f564c2baf2d6fb54be62c5b61",
+    "publicAddress": "0x18d167cdc47e125f564c2baf2d6fb54be62c5b61",
+    "auth_method": "metamask",
+    "role": "user",
+    "profile": {
+      "name": null,
+      "avatar": null,
+      "phone": null
+    },
+    "oauth": {
+      "metamaskAddress": "0x18d167cdc47e125f564c2baf2d6fb54be62c5b61"
+    },
+    "createdAt": "2026-05-03T20:40:32.290Z"
+  },
+  {
+    "id": "user_1777842746579",
+    "email": "testuser@example.com",
+    "walletAddress": "0xf1d1ce8b883bb7ea5ac942e404082f4300913460",
+    "publicAddress": "0xf1d1ce8b883bb7ea5ac942e404082f4300913460",
+    "auth_method": "google",
+    "role": "user",
+    "profile": {
+      "name": "Dev User",
+      "avatar": null,
+      "phone": null
+    },
+    "oauth": {
+      "googleId": "mock_token.eyJlbWFpbCI6InRlc3R1c2VyQGV4YW1wbGUuY29tIiwibmFtZSI6IkRldiBVc2VyIn0=.mock_sig",
+      "googleEmail": "testuser@example.com"
+    },
+    "createdAt": "2026-05-03T21:12:26.579Z"
   }
 ]

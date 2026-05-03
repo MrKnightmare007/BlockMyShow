@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useLocation as useAppLocation } from '../context/LocationContext';
 
 // Icons
 const Icon = {
@@ -37,12 +38,24 @@ const Icon = {
     <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
     </svg>
+  ),
+  MapPin: () => (
+    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+      <circle cx="12" cy="10" r="3"/>
+    </svg>
+  ),
+  ChevronDown: () => (
+    <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <polyline points="6 9 12 15 18 9"/>
+    </svg>
   )
 };
 
 const Navbar = () => {
   const { user, walletAddress, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { selectedCity, setSelectedCity, cities, detectLocation, isAutoDetecting } = useAppLocation();
   const location = useLocation();
 
   const navItems = [
@@ -66,20 +79,90 @@ const Navbar = () => {
       zIndex: 50 
     }}>
       {/* Logo */}
-      <Link 
-        to="/" 
-        style={{ 
-          fontFamily: 'Syne, sans-serif', 
-          fontSize: '1.25rem',
-          fontWeight: 'bold',
-          color: 'var(--text)',
-          textDecoration: 'none',
-          letterSpacing: '2px',
-          textTransform: 'uppercase'
-        }}
-      >
-        BlockMyShow
-      </Link>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+        <Link 
+          to="/" 
+          style={{ 
+            fontFamily: 'Syne, sans-serif', 
+            fontSize: '1.25rem',
+            fontWeight: 'bold',
+            color: 'var(--text)',
+            textDecoration: 'none',
+            letterSpacing: '2px',
+            textTransform: 'uppercase'
+          }}
+        >
+          BlockMyShow
+        </Link>
+
+        {/* Location Selector */}
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px', 
+            padding: '6px 12px', 
+            border: '2px solid var(--border)',
+            background: 'var(--input-bg)',
+            cursor: 'pointer',
+            fontSize: '12px',
+            fontWeight: 'bold'
+          }}>
+            <Icon.MapPin />
+            <select
+              value={selectedCity}
+              onChange={(e) => setSelectedCity(e.target.value)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text)',
+                fontFamily: 'inherit',
+                fontSize: 'inherit',
+                fontWeight: 'inherit',
+                outline: 'none',
+                cursor: 'pointer',
+                paddingRight: '4px',
+                appearance: 'none', // Remove default arrow for custom look if desired
+                WebkitAppearance: 'none'
+              }}
+            >
+              {cities.map(city => (
+                <option 
+                  key={city} 
+                  value={city}
+                  style={{
+                    background: 'var(--surface)',
+                    color: 'var(--text)',
+                    padding: '10px'
+                  }}
+                >
+                  {city}
+                </option>
+              ))}
+            </select>
+            <div style={{ pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
+              <Icon.ChevronDown />
+            </div>
+            <button 
+              onClick={detectLocation} 
+              title="Auto-detect location"
+              style={{ 
+                background: 'transparent', 
+                border: 'none', 
+                color: isAutoDetecting ? 'var(--primary)' : 'var(--muted)',
+                cursor: 'pointer',
+                padding: '2px',
+                display: 'flex',
+                alignItems: 'center',
+                marginLeft: '8px',
+                fontSize: '14px'
+              }}
+            >
+              {isAutoDetecting ? '⌛' : '🎯'}
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Navigation Items */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>

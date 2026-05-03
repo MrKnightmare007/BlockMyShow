@@ -23,4 +23,6 @@ try {
   console.warn("Firebase initialization failed (probably missing keys). Falling back to mock auth.", error);
 }
 
-export { auth, googleProvider };
+const isMockFirebase = !import.meta.env.VITE_FIREBASE_API_KEY || import.meta.env.VITE_FIREBASE_API_KEY === "mock_api_key";
+
+export { auth, googleProvider, isMockFirebase };

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import Loader from '../components/Loader';
 import { signInWithPopup } from 'firebase/auth';
-import { auth, googleProvider } from '../utils/firebase';
+import { auth, googleProvider, isMockFirebase } from '../utils/firebase';
 import toast from 'react-hot-toast';
 
 const API_BASE = 'http://localhost:5000/api/v1';
@@ -108,8 +108,29 @@ const AuthPage = () => {
   const handleGoogleAuth = async () => {
     setLoading(true);
     try {
-      if (!auth || !googleProvider) {
-        throw new Error('Firebase Auth not configured. Please set up Firebase to use Google Login.');
+      // DEV FALLBACK: If Firebase is not configured, use a mock login for testing
+      if (isMockFirebase || !auth || !googleProvider || import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
+        console.warn('Firebase not configured or MOCK_AUTH enabled. Using dev fallback.');
+        const mockEmail = prompt("Enter a mock email for development login:", "testuser@example.com");
+        if (!mockEmail) {
+          setLoading(false);
+          return;
+        }
+        
+        const endpoint = isSignup ? '/auth/signup/google' : '/auth/login/google';
+        const response = await fetch(`${API_BASE}${endpoint}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            idToken: `mock_token.${btoa(JSON.stringify({ email: mockEmail, name: 'Dev User' }))}.mock_sig`,
+            isMock: true 
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || data.error || 'Mock Google auth failed');
+        login(data.user, data.token, data.walletAddress || data.user?.walletAddress);
+        toast.success('Logged in with Mock Google Account (Dev Mode)');
+        return;
       }
       
       const result = await signInWithPopup(auth, googleProvider);
@@ -126,6 +147,7 @@ const AuthPage = () => {
       login(data.user, data.token, data.walletAddress || data.user?.walletAddress);
       toast.success('Google authentication successful!');
     } catch (err) {
+      console.error('Google Auth Error:', err);
       toast.error(err.message);
     } finally {
       setLoading(false);
@@ -240,31 +262,58 @@ const AuthPage = () => {
       {loading && <Loader fullScreen text={otpSent ? 'Verifying OTP...' : 'Authenticating...'} />}
 
       {/* Left Panel – Branding */}
-      <div style={{
-        background: '#000',
+      <div className="neon-bg-container" style={{
         color: '#fff',
         padding: '3rem',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
-        borderRight: '3px solid var(--border)'
+        borderRight: '3px solid var(--border)',
+        position: 'relative'
       }}>
-        <div>
-          <h1 style={{ fontSize: '3rem', fontFamily: 'Syne, sans-serif', lineHeight: 1, marginBottom: '2rem' }}>
-            NFT <span style={{ color: '#31bbaf' }}>Tickets</span><br/>
-            Web3 <span style={{ color: '#31bbaf' }}>Events</span>
+        {/* Animated Background Elements */}
+        <div className="neon-grid"></div>
+        <div className="blockchain-orb" style={{ top: '10%', left: '10%' }}></div>
+        <div className="blockchain-orb" style={{ bottom: '10%', right: '10%', background: 'radial-gradient(circle, rgba(49, 187, 175, 0.15) 0%, transparent 70%)' }}></div>
+        
+        <div className="floating-block"></div>
+        <div className="floating-block"></div>
+        <div className="floating-block"></div>
+        <div className="floating-block"></div>
+        <div className="floating-block"></div>
+
+        <div style={{ position: 'relative', zIndex: 10 }}>
+          <h1 className="neon-glow-text" style={{ fontSize: '3.5rem', fontFamily: 'Syne, sans-serif', lineHeight: 1, marginBottom: '2rem', fontWeight: 800 }}>
+            NFT <span style={{ color: 'var(--primary)', textShadow: '0 0 20px rgba(49, 187, 175, 0.6)' }}>TICKETS</span><br/>
+            <span className="neon-glow-purple">WEB3 EVENTS</span>
           </h1>
-          <p style={{ fontSize: '1.1rem', opacity: 0.8, marginBottom: '2rem' }}>
-            Secure, identity-bound event tickets powered by blockchain technology
+          <p style={{ fontSize: '1.2rem', opacity: 0.9, marginBottom: '2.5rem', maxWidth: '400px', lineHeight: 1.5, fontWeight: 500 }}>
+            Secure, identity-bound event tickets powered by <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>Blockchain</span> technology.
           </p>
-          <div style={{ fontSize: '0.9rem', opacity: 0.6 }}>
-            <div>✓ Non-transferable NFT tickets</div>
-            <div>✓ Aadhaar-based identity verification</div>
-            <div>✓ Fraud-proof entry system</div>
-            <div>✓ Automatic wallet creation</div>
+          
+          <div style={{ display: 'grid', gap: '1.5rem' }}>
+            {[
+              { label: 'Non-transferable NFT tickets', icon: '🔗' },
+              { label: 'Aadhaar-linked verification', icon: '🆔' },
+              { label: 'Fraud-proof entry system', icon: '🛡️' },
+              { label: 'Automatic wallet creation', icon: '👛' }
+            ].map((item, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(255,255,255,0.05)', padding: '12px 20px', borderLeft: '4px solid var(--primary)', backdropFilter: 'blur(5px)' }}>
+                <span style={{ fontSize: '1.2rem' }}>{item.icon}</span>
+                <span style={{ fontSize: '0.95rem', fontWeight: 600, letterSpacing: '0.5px' }}>{item.label}</span>
+              </div>
+            ))}
           </div>
         </div>
-        <div style={{ fontSize: '0.8rem', opacity: 0.5 }}>BlockMyShow © 2026</div>
+        
+        <div style={{ position: 'relative', zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: '0.8rem', opacity: 0.6, fontWeight: 'bold', letterSpacing: '1px' }}>BLOCKMYSHOW © 2026</div>
+          <div style={{ display: 'flex', gap: '15px' }}>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--primary)', boxShadow: '0 0 10px var(--primary)' }}></div>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#a855f7', boxShadow: '0 0 10px #a855f7' }}></div>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#3b82f6', boxShadow: '0 0 10px #3b82f6' }}></div>
+          </div>
+        </div>
       </div>
 
       {/* Right Panel – Authentication */}
@@ -326,6 +375,7 @@ const AuthPage = () => {
                   border: activeTab === tab ? '2px solid var(--primary)' : '2px solid var(--border)',
                   background: activeTab === tab ? 'var(--primary)' : 'var(--surface)',
                   color: activeTab === tab ? '#000' : 'var(--text)',
+                  boxShadow: activeTab === tab ? '0 0 15px var(--primary)' : 'none',
                   cursor: 'pointer', fontFamily: 'monospace', fontSize: '11px',
                   fontWeight: 'bold', borderRadius: '4px', transition: 'all 0.2s'
                 }}

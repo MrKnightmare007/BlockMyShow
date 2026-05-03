@@ -361,32 +361,42 @@ export const signupGoogle = async (req, res) => {
       });
     }
 
-    // TODO: Verify token with Google API / Firebase
-    // const decodedToken = await admin.auth().verifyIdToken(idToken);
-    // const { email, name } = decodedToken;
-
-    // For now, extract email from idToken payload if possible, or fallback
-    let email = 'user@google.com'; 
+    // Attempt to extract email from idToken payload
+    let email = null;
     let name = 'Google User'; 
     try {
       if (idToken) {
-        const payload = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64').toString());
-        if (payload.email) email = payload.email;
-        if (payload.name) name = payload.name;
+        // ID Token is a JWT: [header].[payload].[signature]
+        const payloadBase64 = idToken.split('.')[1];
+        if (payloadBase64) {
+          const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
+          email = payload.email;
+          name = payload.name || payload.given_name || 'Google User';
+        }
       }
-    } catch(e) {}
+    } catch(e) {
+      console.warn('[AUTH/SIGNUP-GOOGLE] Failed to parse idToken payload:', e.message);
+    }
+
+    if (!email) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Could not extract email from Google token. Malformed token.',
+      });
+    }
 
     // Check if user exists
     let user = db.findUserByEmail(email);
     let wallet;
 
     if (!user) {
+      console.log(`[AUTH/SIGNUP-GOOGLE] Creating new user for ${email}`);
       wallet = authUtils.generateWallet();
       user = {
         id: `user_${Date.now()}`,
-        email,
-        walletAddress: wallet.address,
-        publicAddress: wallet.address,
+        email: email.toLowerCase(),
+        walletAddress: wallet.address.toLowerCase(),
+        publicAddress: wallet.address.toLowerCase(),
         auth_method: 'google',
         role: 'user',
         profile: {
@@ -402,6 +412,7 @@ export const signupGoogle = async (req, res) => {
       };
       db.addUser(user);
     } else {
+      console.log(`[AUTH/SIGNUP-GOOGLE] User already exists for ${email}, logging in.`);
       wallet = { address: user.walletAddress };
     }
 
@@ -417,11 +428,11 @@ export const signupGoogle = async (req, res) => {
       success: true,
       user: authUtils.sanitizeUserResponse(user),
       token,
-      walletAddress: wallet.address,
-      message: 'Google signup successful. Call /wallet-keypair to get private key.',
+      walletAddress: user.walletAddress,
+      message: 'Google auth successful',
     });
   } catch (error) {
-    console.error('[AUTH/SIGNUP-GOOGLE]', error);
+    console.error('[AUTH/SIGNUP-GOOGLE] Error:', error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: error.message,
@@ -444,14 +455,26 @@ export const loginGoogle = async (req, res) => {
       });
     }
 
-    // TODO: Verify token with Google / Firebase
-    let email = 'user@google.com'; // Mock
+    // Extract email from idToken
+    let email = null;
     try {
       if (idToken) {
-        const payload = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64').toString());
-        if (payload.email) email = payload.email;
+        const payloadBase64 = idToken.split('.')[1];
+        if (payloadBase64) {
+          const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
+          email = payload.email;
+        }
       }
-    } catch(e) {}
+    } catch(e) {
+      console.warn('[AUTH/LOGIN-GOOGLE] Failed to parse idToken:', e.message);
+    }
+
+    if (!email) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Could not extract email from Google token',
+      });
+    }
 
     const user = db.findUserByEmail(email);
     if (!user) {
@@ -469,6 +492,8 @@ export const loginGoogle = async (req, res) => {
       auth_method: 'google',
     });
 
+    console.log(`[AUTH/LOGIN-GOOGLE] Successful login for ${email}`);
+
     res.status(200).json({
       success: true,
       user: authUtils.sanitizeUserResponse(user),
@@ -477,7 +502,7 @@ export const loginGoogle = async (req, res) => {
       message: 'Google login successful',
     });
   } catch (error) {
-    console.error('[AUTH/LOGIN-GOOGLE]', error);
+    console.error('[AUTH/LOGIN-GOOGLE] Error:', error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: error.message,
@@ -509,29 +534,38 @@ export const signupMetamask = async (req, res) => {
 
     // Verify signature
     const isValid = authUtils.verifyEthereumSignature(message, signature, address);
-    if (!isValid) return res.status(401).json({ error: 'Unauthorized', message: 'Invalid signature' });
+    if (!isValid) {
+      return res.status(401).json({ 
+        error: 'Unauthorized', 
+        message: 'Invalid signature. Ownership verification failed.' 
+      });
+    }
 
-    let user = db.findUserByWallet(address);
+    const normalizedAddress = address.toLowerCase();
+    let user = db.findUserByWallet(normalizedAddress);
 
     if (!user) {
+      console.log(`[AUTH/SIGNUP-METAMASK] Registering new wallet: ${normalizedAddress}`);
       user = {
         id: `user_${Date.now()}`,
         email: null,
-        walletAddress: address.toLowerCase(),
-        publicAddress: address.toLowerCase(),
+        walletAddress: normalizedAddress,
+        publicAddress: normalizedAddress,
         auth_method: 'metamask',
         role: 'user',
         profile: {
-          name: null,
+          name: 'Web3 User',
           avatar: null,
           phone: null,
         },
         oauth: {
-          metamaskAddress: address.toLowerCase(),
+          metamaskAddress: normalizedAddress,
         },
         createdAt: new Date(),
       };
       db.addUser(user);
+    } else {
+      console.log(`[AUTH/SIGNUP-METAMASK] Wallet already exists: ${normalizedAddress}, logging in.`);
     }
 
     const token = authUtils.createJWT({
@@ -545,14 +579,15 @@ export const signupMetamask = async (req, res) => {
       success: true,
       user: authUtils.sanitizeUserResponse(user),
       token,
-      walletAddress: wallet.address,
-      message: 'MetaMask signup successful',
+      walletAddress: user.walletAddress,
+      message: 'MetaMask auth successful',
     });
   } catch (error) {
-    console.error('[AUTH/SIGNUP-METAMASK]', error);
+    console.error('[AUTH/SIGNUP-METAMASK] Internal Error:', error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: error.message,
+      detail: 'Error during MetaMask user registration or wallet generation'
     });
   }
 };
@@ -572,11 +607,20 @@ export const loginMetamask = async (req, res) => {
       });
     }
 
-    // Verify signature
-    const isValid = authUtils.verifyEthereumSignature(message, signature, address);
-    if (!isValid) return res.status(401).json({ error: 'Unauthorized', message: 'Invalid signature' });
+    // Verify signature if provided
+    if (signature && message) {
+      const isValid = authUtils.verifyEthereumSignature(message, signature, address);
+      if (!isValid) {
+        return res.status(401).json({ 
+          error: 'Unauthorized', 
+          message: 'Invalid signature. Ownership verification failed.' 
+        });
+      }
+    }
 
-    const user = db.findUserByWallet(address);
+    const normalizedAddress = address.toLowerCase();
+    const user = db.findUserByWallet(normalizedAddress);
+    
     if (!user) {
       return res.status(401).json({
         error: 'Unauthorized',
@@ -591,6 +635,8 @@ export const loginMetamask = async (req, res) => {
       auth_method: 'metamask',
     });
 
+    console.log(`[AUTH/LOGIN-METAMASK] Successful login for ${normalizedAddress}`);
+
     res.status(200).json({
       success: true,
       user: authUtils.sanitizeUserResponse(user),
@@ -599,10 +645,11 @@ export const loginMetamask = async (req, res) => {
       message: 'MetaMask login successful',
     });
   } catch (error) {
-    console.error('[AUTH/LOGIN-METAMASK]', error);
+    console.error('[AUTH/LOGIN-METAMASK] Internal Error:', error);
     res.status(500).json({
       error: 'Internal Server Error',
       message: error.message,
+      detail: 'Error during MetaMask authentication or JWT creation'
     });
   }
 };
