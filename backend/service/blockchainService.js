@@ -1,7 +1,85 @@
 const { ethers } = require('ethers')
 
-// Minimal ABI - properly formatted for ethers.js v6
+// Updated ABI for ProofPass contract with resale support
 const TICKET_ABI = [
+  // ──── EVENTS ────
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'uint256', name: 'eventId', type: 'uint256' },
+      { indexed: false, internalType: 'string', name: 'title', type: 'string' },
+      { indexed: false, internalType: 'uint256', name: 'date', type: 'uint256' },
+      { indexed: false, internalType: 'uint256', name: 'totalTickets', type: 'uint256' }
+    ],
+    name: 'EventCreated',
+    type: 'event'
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'uint256', name: 'eventId', type: 'uint256' },
+      { indexed: false, internalType: 'string', name: 'newPhotoUrl', type: 'string' }
+    ],
+    name: 'EventMetadataUpdated',
+    type: 'event'
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'uint256', name: 'tokenId', type: 'uint256' },
+      { indexed: true, internalType: 'address', name: 'to', type: 'address' },
+      { indexed: true, internalType: 'uint256', name: 'eventId', type: 'uint256' },
+      { indexed: false, internalType: 'bytes32', name: 'commitment', type: 'bytes32' }
+    ],
+    name: 'TicketMinted',
+    type: 'event'
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'uint256', name: 'tokenId', type: 'uint256' },
+      { indexed: false, internalType: 'uint256', name: 'listPrice', type: 'uint256' }
+    ],
+    name: 'TicketListed',
+    type: 'event'
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'uint256', name: 'tokenId', type: 'uint256' }
+    ],
+    name: 'TicketUnlisted',
+    type: 'event'
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'uint256', name: 'tokenId', type: 'uint256' },
+      { indexed: false, internalType: 'uint256', name: 'oldPrice', type: 'uint256' },
+      { indexed: false, internalType: 'uint256', name: 'newPrice', type: 'uint256' }
+    ],
+    name: 'TicketListPriceUpdated',
+    type: 'event'
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'uint256', name: 'tokenId', type: 'uint256' }
+    ],
+    name: 'TicketUsed',
+    type: 'event'
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'uint256', name: 'tokenId', type: 'uint256' },
+      { indexed: true, internalType: 'address', name: 'newOwner', type: 'address' },
+      { indexed: false, internalType: 'uint256', name: 'price', type: 'uint256' }
+    ],
+    name: 'TicketResold',
+    type: 'event'
+  },
+  // ──── FUNCTIONS ────
   {
     inputs: [
       { internalType: 'uint256', name: 'eventId', type: 'uint256' }
@@ -15,11 +93,11 @@ const TICKET_ABI = [
           { internalType: 'string', name: 'venue', type: 'string' },
           { internalType: 'uint256', name: 'date', type: 'uint256' },
           { internalType: 'uint256', name: 'price', type: 'uint256' },
+          { internalType: 'string', name: 'photoUrl', type: 'string' },
           { internalType: 'uint256', name: 'totalTickets', type: 'uint256' },
-          { internalType: 'uint256', name: 'ticketsMinted', type: 'uint256' },
-          { internalType: 'string', name: 'metadataURI', type: 'string' }
+          { internalType: 'uint256', name: 'ticketsMinted', type: 'uint256' }
         ],
-        internalType: 'struct TicketNFT.EventInfo',
+        internalType: 'struct ProofPass.EventInfo',
         name: '',
         type: 'tuple'
       }
@@ -37,12 +115,35 @@ const TICKET_ABI = [
         components: [
           { internalType: 'uint256', name: 'eventId', type: 'uint256' },
           { internalType: 'bytes32', name: 'commitment', type: 'bytes32' },
-          { internalType: 'bool', name: 'used', type: 'bool' }
+          { internalType: 'bool', name: 'used', type: 'bool' },
+          { internalType: 'bool', name: 'isListed', type: 'bool' },
+          { internalType: 'uint256', name: 'listPrice', type: 'uint256' },
+          { internalType: 'uint256', name: 'salePrice', type: 'uint256' }
         ],
-        internalType: 'struct TicketNFT.TicketInfo',
+        internalType: 'struct ProofPass.TicketInfo',
         name: '',
         type: 'tuple'
       }
+    ],
+    stateMutability: 'view',
+    type: 'function'
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'user', type: 'address' }
+    ],
+    name: 'getUserTickets',
+    outputs: [
+      { internalType: 'uint256[]', name: '', type: 'uint256[]' }
+    ],
+    stateMutability: 'view',
+    type: 'function'
+  },
+  {
+    inputs: [],
+    name: 'getListedTokens',
+    outputs: [
+      { internalType: 'uint256[]', name: '', type: 'uint256[]' }
     ],
     stateMutability: 'view',
     type: 'function'
@@ -53,8 +154,8 @@ const TICKET_ABI = [
       { internalType: 'string', name: 'venue', type: 'string' },
       { internalType: 'uint256', name: 'date', type: 'uint256' },
       { internalType: 'uint256', name: 'price', type: 'uint256' },
-      { internalType: 'uint256', name: 'totalTickets', type: 'uint256' },
-      { internalType: 'string', name: 'metadataURI', type: 'string' }
+      { internalType: 'string', name: 'photoUrl', type: 'string' },
+      { internalType: 'uint256', name: 'totalTickets', type: 'uint256' }
     ],
     name: 'createEvent',
     outputs: [ { internalType: 'uint256', name: '', type: 'uint256' } ],
@@ -64,7 +165,7 @@ const TICKET_ABI = [
   {
     inputs: [
       { internalType: 'uint256', name: 'eventId', type: 'uint256' },
-      { internalType: 'string', name: 'newURI', type: 'string' }
+      { internalType: 'string', name: 'newPhotoUrl', type: 'string' }
     ],
     name: 'updateEventMetadata',
     outputs: [],
@@ -85,6 +186,46 @@ const TICKET_ABI = [
   {
     inputs: [
       { internalType: 'uint256', name: 'tokenId', type: 'uint256' },
+      { internalType: 'uint256', name: 'price', type: 'uint256' }
+    ],
+    name: 'listForResale',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function'
+  },
+  {
+    inputs: [
+      { internalType: 'uint256', name: 'tokenId', type: 'uint256' }
+    ],
+    name: 'cancelListing',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function'
+  },
+  {
+    inputs: [
+      { internalType: 'uint256', name: 'tokenId', type: 'uint256' },
+      { internalType: 'uint256', name: 'newPrice', type: 'uint256' }
+    ],
+    name: 'updateListPrice',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function'
+  },
+  {
+    inputs: [
+      { internalType: 'uint256', name: 'tokenId', type: 'uint256' },
+      { internalType: 'address', name: 'buyer', type: 'address' },
+      { internalType: 'bytes32', name: 'newCommitment', type: 'bytes32' }
+    ],
+    name: 'buyResale',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function'
+  },
+  {
+    inputs: [
+      { internalType: 'uint256', name: 'tokenId', type: 'uint256' },
       { internalType: 'bytes32', name: 'commitment', type: 'bytes32' }
     ],
     name: 'markUsed',
@@ -99,16 +240,6 @@ const TICKET_ABI = [
       { indexed: true, internalType: 'uint256', name: 'tokenId', type: 'uint256' }
     ],
     name: 'Transfer',
-    type: 'event'
-  },
-  {
-    inputs: [
-      { indexed: true, internalType: 'uint256', name: 'tokenId', type: 'uint256' },
-      { indexed: true, internalType: 'address', name: 'to', type: 'address' },
-      { indexed: true, internalType: 'uint256', name: 'eventId', type: 'uint256' },
-      { indexed: false, internalType: 'bytes32', name: 'commitment', type: 'bytes32' }
-    ],
-    name: 'TicketMinted',
     type: 'event'
   }
 ]
@@ -353,10 +484,94 @@ const getUserTickets = async (walletAddress) => {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// ║               RESALE MARKETPLACE FUNCTIONS                 ║
+// ═══════════════════════════════════════════════════════════════
+
+const getListedTokens = async () => {
+  const contract = getReadContract()
+  try {
+    console.log('[getListedTokens] Fetching listed tokens from chain')
+    const tokens = await contract.getListedTokens()
+    return tokens.map(t => Number(t))
+  } catch (err) {
+    throw new Error(`Failed to fetch listed tokens: ${err.message}`)
+  }
+}
+
+const listForResale = async (tokenId, price) => {
+  const contract = getWriteContract()
+  try {
+    console.log(`[listForResale] Listing token ${tokenId} for price ${price}`)
+    const tx = await contract.listForResale(tokenId, price)
+    const receipt = await tx.wait()
+    
+    return {
+      transactionHash: receipt.hash,
+      blockNumber: receipt.blockNumber
+    }
+  } catch (err) {
+    throw new Error(`Failed to list ticket for resale: ${err.message}`)
+  }
+}
+
+const cancelListing = async (tokenId) => {
+  const contract = getWriteContract()
+  try {
+    console.log(`[cancelListing] Cancelling listing for token ${tokenId}`)
+    const tx = await contract.cancelListing(tokenId)
+    const receipt = await tx.wait()
+    
+    return {
+      transactionHash: receipt.hash,
+      blockNumber: receipt.blockNumber
+    }
+  } catch (err) {
+    throw new Error(`Failed to cancel listing: ${err.message}`)
+  }
+}
+
+const updateListPrice = async (tokenId, newPrice) => {
+  const contract = getWriteContract()
+  try {
+    console.log(`[updateListPrice] Updating price for token ${tokenId} to ${newPrice}`)
+    const tx = await contract.updateListPrice(tokenId, newPrice)
+    const receipt = await tx.wait()
+    
+    return {
+      transactionHash: receipt.hash,
+      blockNumber: receipt.blockNumber
+    }
+  } catch (err) {
+    throw new Error(`Failed to update list price: ${err.message}`)
+  }
+}
+
+const buyResale = async (tokenId, buyerAddress, newCommitment) => {
+  const contract = getWriteContract()
+  try {
+    console.log(`[buyResale] Processing resale for token ${tokenId} to ${buyerAddress}`)
+    const tx = await contract.buyResale(tokenId, buyerAddress, newCommitment)
+    const receipt = await tx.wait()
+    
+    return {
+      transactionHash: receipt.hash,
+      blockNumber: receipt.blockNumber
+    }
+  } catch (err) {
+    throw new Error(`Failed to process resale: ${err.message}`)
+  }
+}
+
 module.exports = {
   getEvent,
   getTicketInfo,
+  getUserTickets,
   mintTicket,
   markUsed,
-  getUserTickets
+  getListedTokens,
+  listForResale,
+  cancelListing,
+  updateListPrice,
+  buyResale
 }

@@ -51,7 +51,39 @@ const verifySignupOtp = (email, password, otp) => {
   })
 }
 
+/**
+ * @notice Generate OTP for ticket resale (two-step verification)
+ * @param tokenId Ticket ID being purchased
+ * @param buyerIdentity Buyer's identity (e.g., passport/ID number)
+ * @returns Object with OTP code and expiration time
+ */
+const createResaleOtp = (tokenId, buyerIdentity) => {
+  return {
+    otp: generateOtpForWindow(String(tokenId), buyerIdentity, getTimeWindow()),
+    expiresInMinutes: Math.ceil(OTP_WINDOW_MS / 60000)
+  }
+}
+
+/**
+ * @notice Verify OTP for ticket resale purchase
+ * @param tokenId Ticket ID being purchased
+ * @param buyerIdentity Buyer's identity (e.g., passport/ID number)
+ * @param otp OTP code to verify
+ * @returns Boolean indicating if OTP is valid
+ */
+const verifyResaleOtp = (tokenId, buyerIdentity, otp) => {
+  const cleanOtp = String(otp).trim()
+  const currentWindow = getTimeWindow()
+  const allowedWindows = [currentWindow, currentWindow - 1]
+
+  return allowedWindows.some((timeWindow) => {
+    return generateOtpForWindow(String(tokenId), buyerIdentity, timeWindow) === cleanOtp
+  })
+}
+
 module.exports = {
   createSignupOtp,
-  verifySignupOtp
+  verifySignupOtp,
+  createResaleOtp,
+  verifyResaleOtp
 }
