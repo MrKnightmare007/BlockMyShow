@@ -33,31 +33,39 @@ const AppContent = () => {
     <div style={{ fontFamily: 'Space Mono, monospace' }}>
       <Routes>
         {/* Public Routes */}
-        <Route path="/" element={<DashboardPage />} />
         <Route path="/auth" element={<AuthPage />} />
         
-        {/* Protected Routes */}
-        <Route path="/tickets" element={
-          isAuthenticated ? (
-            <>
-              <Navbar />
-              <TicketsPage />
-            </>
-          ) : <Navigate to="/auth" replace />
-        } />
-        <Route
-          path="/admin/events"
-          element={
-            isAuthenticated && isAdmin ? (
+        {/* Protected Routes with Navbar */}
+        {isAuthenticated ? (
+          <>
+            <Route path="/" element={
               <>
                 <Navbar />
-                <ManageEventsPage />
+                <DashboardPage />
               </>
-            ) : <Navigate to="/auth" replace />
-          }
-        />
-        
-        <Route path="*" element={<Navigate to="/" replace />} />
+            } />
+            <Route path="/tickets" element={
+              <>
+                <Navbar />
+                <TicketsPage />
+              </>
+            } />
+            {isAdmin && (
+              <Route path="/admin/events" element={
+                <>
+                  <Navbar />
+                  <ManageEventsPage />
+                </>
+              } />
+            )}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </>
+        ) : (
+          <>
+            <Route path="/" element={<Navigate to="/auth" replace />} />
+            <Route path="*" element={<Navigate to="/auth" replace />} />
+          </>
+        )}
       </Routes>
     </div>
   );

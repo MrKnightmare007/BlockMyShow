@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { View, TextInput, TouchableOpacity, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useAdminAuth } from '../context/AdminAuthContext';
 
-const API_BASE = 'http://localhost:5000/api/v1';
+const API_BASE = 'http://192.168.29.141:5000/api';
 
 export default function AdminLoginScreen() {
   const { login, setError } = useAdminAuth();
+  const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,7 +20,7 @@ export default function AdminLoginScreen() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/auth/admin-login`, {
+      const response = await fetch(`${API_BASE}/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -31,12 +33,13 @@ export default function AdminLoginScreen() {
       }
 
       // Verify role-based access
-      if (!['admin', 'event_creator', 'gate_operator'].includes(data.admin.role)) {
+      if (!['super_admin', 'admin', 'event_creator', 'gate_operator'].includes(data.admin.role)) {
         throw new Error('Invalid admin role');
       }
 
       await login(data.admin, data.token);
       setError(null);
+      router.replace('/(tabs)');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Login failed';
       setError(errorMessage);

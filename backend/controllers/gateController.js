@@ -9,7 +9,7 @@ const gateEntry = async (req, res) => {
     const { token_id, identity_id } = req.body
 
     // Validate request body
-    if (!token_id || !identity_id) {
+    if (token_id === undefined || token_id === null || !identity_id) {
       return res.status(400).json({
         success: false,
         message: 'token_id and identity_id are required'
@@ -37,7 +37,7 @@ const gateEntry = async (req, res) => {
 
     // Hash identity and lookup
     const hashedId = hashIdentity(identity_id)
-    const identity = getIdentityByHashedId(hashedId)
+    const identity = await getIdentityByHashedId(hashedId)
     
     if (!identity) {
       return res.status(404).json({
@@ -94,7 +94,7 @@ const gateVerifyEntry = async (req, res) => {
     const { token_id, identity_id, otp } = req.body
 
     // Validate request body
-    if (!token_id || !identity_id || !otp) {
+    if (token_id === undefined || token_id === null || !identity_id || !otp) {
       return res.status(400).json({
         success: false,
         message: 'token_id, identity_id, and otp are required'

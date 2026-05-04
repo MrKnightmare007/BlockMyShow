@@ -21,7 +21,8 @@ const sanitizeUser = (user) => {
 const buildUserToken = (user) => {
   return generateToken({
     id: user.$id,
-    role: 'user'
+    role: 'user',
+    wallet_address: user.wallet_address
   })
 }
 

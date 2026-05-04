@@ -1,28 +1,56 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, TextInput } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+  TextInput,
+  ScrollView,
+  Image,
+} from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAdminAuth } from '@/context/AdminAuthContext';
 
-const API_BASE = 'http://localhost:5000/api/v1';
+const API_BASE = 'http://192.168.29.141:5000/api';
 
-interface VerificationResult {
-  success: boolean;
-  message: string;
-  ticket?: any;
-  identity?: any;
+interface GateEntry {
+  tokenId: number;
+  identityId: string;
+  name: string;
+  profilePhotoUrl?: string;
+}
+
+interface GateVerification {
+  tokenId: number;
+  identityId: string;
+  otp: string;
 }
 
 export default function GateScannerScreen() {
-  const { token, admin } = useAdminAuth();
+  const { token } = useAdminAuth();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [lastResult, setLastResult] = useState<VerificationResult | null>(null);
-  const [manualEntry, setManualEntry] = useState(false);
-  const [manualTicketId, setManualTicketId] = useState('');
-  const [stats, setStats] = useState({ verified: 0, failed: 0 });
-  const cameraRef = useRef(null);
+  const [scanning, setScanning] = useState(true);
 
+  // Step 1: Scan & Entry
+  const [step, setStep] = useState<'scan' | 'entry' | 'otp' | 'verified'>('scan');
+  const [tokenId, setTokenId] = useState<number | null>(null);
+  const [manualTokenId, setManualTokenId] = useState('');
+  const [identityId, setIdentityId] = useState('');
+  const [identityManual, setIdentityManual] = useState('');
+
+  // Step 2: Entry Result
+  const [entryData, setEntryData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // Step 3: OTP Verification
+  const [otp, setOtp] = useState('');
+  const [verificationResult, setVerificationResult] = useState<any>(null);
+
+  // Permissions
   if (!permission) {
     return <View style={styles.container} />;
   }
@@ -31,457 +59,433 @@ export default function GateScannerScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.centerContent}>
-          <Text style={styles.noPermissionText}>📷 Camera Access Required</Text>
-          <Text style={styles.permissionSubtext}>
-            Camera permission is needed to scan QR codes on tickets
-          </Text>
-          <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
-            <Text style={styles.permissionButtonText}>Grant Camera Permission</Text>
+          <Text style={styles.permissionText}>📷 Camera Permission Required</Text>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={requestPermission}
+          >
+            <Text style={styles.buttonText}>Grant Permission</Text>
+          </TouchableOpacity>
+
+          <View style={styles.manualPanel}>
+            <Text style={styles.manualTitle}>Manual Token ID</Text>
+            <Text style={styles.manualText}>You can still enter the ticket token ID without scanning a QR code.</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter token ID"
+              value={manualTokenId}
+              onChangeText={setManualTokenId}
+              keyboardType="numeric"
+              editable={!loading}
+            />
+            <TouchableOpacity
+              style={[styles.button, styles.manualButton]}
+              onPress={handleManualTokenSubmit}
+              disabled={loading}
+            >
+              <Text style={styles.buttonText}>Use Token ID</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // Handle QR code scan
+  const handleBarCodeScanned = ({ data }: { data: string }) => {
+    if (!scanned) {
+      setScanned(true);
+      try {
+        const decoded = JSON.parse(data);
+        setTokenId(decoded.tokenId);
+        setStep('entry');
+      } catch {
+        // If not JSON, try as plain number
+        const tokenIdNum = parseInt(data);
+        if (!isNaN(tokenIdNum)) {
+          setTokenId(tokenIdNum);
+          setStep('entry');
+        } else {
+          Alert.alert('Invalid QR Code', 'QR code does not contain a valid token ID');
+          setScanned(false);
+        }
+      }
+    }
+  };
+
+  function handleManualTokenSubmit() {
+    const tokenValue = parseInt(manualTokenId, 10);
+
+    if (Number.isNaN(tokenValue) || tokenValue <= 0) {
+      Alert.alert('Invalid Token ID', 'Enter a valid ticket token ID');
+      return;
+    }
+
+    setTokenId(tokenValue);
+    setStep('entry');
+  }
+
+  // Step 1: Request Entry (calls /api/gate/entry)
+  const handleEntry = async () => {
+    if (!tokenId || (!identityId && !identityManual)) {
+      setError('Token ID and Identity ID are required');
+      return;
+    }
+
+    const finalIdentityId = identityManual || identityId;
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch(`${API_BASE}/gate/entry`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          token_id: tokenId,
+          identity_id: finalIdentityId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        setError(data.message || 'Failed to verify ticket');
+        return;
+      }
+
+      // Store identity info and move to OTP step
+      setEntryData(data);
+      setIdentityId(finalIdentityId);
+      setStep('otp');
+    } catch (err: any) {
+      setError(err.message || 'Request failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 2: Verify Entry with OTP (calls /api/gate/verify-entry)
+  const handleOtpVerification = async () => {
+    if (!otp || !tokenId || !identityId) {
+      setError('OTP is required');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch(`${API_BASE}/gate/verify-entry`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          token_id: tokenId,
+          identity_id: identityId,
+          otp: otp,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        setError(data.message || 'OTP verification failed');
+        return;
+      }
+
+      setVerificationResult(data);
+      setStep('verified');
+    } catch (err: any) {
+      setError(err.message || 'Request failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Reset to scanning
+  const resetScan = () => {
+    setStep('scan');
+    setScanned(false);
+    setScanning(true);
+    setTokenId(null);
+    setManualTokenId('');
+    setIdentityId('');
+    setIdentityManual('');
+    setEntryData(null);
+    setOtp('');
+    setVerificationResult(null);
+    setError('');
+  };
+
+  // ========== RENDER BASED ON STEP ==========
+
+  // STEP 1: QR Scanning
+  if (step === 'scan') {
+    return (
+      <View style={styles.container}>
+        <CameraView
+          onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+          barcodeScannerSettings={{
+            barcodeTypes: ['qr'],
+          }}
+          style={styles.camera}
+        >
+          <View style={styles.scanOverlay}>
+            <View style={styles.scanBox} />
+            <Text style={styles.scanText}>Point camera at QR code</Text>
+          </View>
+        </CameraView>
+
+        <View style={styles.manualPanel}>
+          <Text style={styles.manualTitle}>Manual Token ID</Text>
+          <Text style={styles.manualText}>Enter the ticket token ID if you do not have the QR code.</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter token ID"
+            value={manualTokenId}
+            onChangeText={setManualTokenId}
+            keyboardType="numeric"
+            editable={!loading}
+          />
+          <TouchableOpacity
+            style={[styles.button, styles.manualButton]}
+            onPress={handleManualTokenSubmit}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>Use Token ID</Text>
+          </TouchableOpacity>
+        </View>
+
+        {scanned && (
+          <View style={styles.scanResultContainer}>
+            <Text style={styles.scanResultText}>QR Code Detected: {tokenId}</Text>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={() => {
+                setScanned(false);
+                setTokenId(null);
+              }}
+            >
+              <Text style={styles.buttonText}>Scan Again</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.button, styles.proceedButton]}
+              onPress={() => setStep('entry')}
+            >
+              <Text style={styles.buttonText}>Proceed</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  // STEP 2: Entry - Ask for Identity ID
+  if (step === 'entry') {
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={styles.formContainer}>
+        <Text style={styles.title}>Verify Identity</Text>
+
+        <View style={styles.infoBox}>
+          <Text style={styles.infoLabel}>Token ID:</Text>
+          <Text style={styles.infoValue}>{tokenId}</Text>
+        </View>
+
+        <Text style={styles.label}>Identity ID (Aadhaar/ID Number)</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter 12-digit Identity ID"
+          value={identityManual}
+          onChangeText={setIdentityManual}
+          keyboardType="numeric"
+          editable={!loading}
+        />
+
+        {error && <Text style={styles.errorText}>{error}</Text>}
+
+        <TouchableOpacity
+          style={[styles.button, loading && styles.buttonDisabled]}
+          onPress={handleEntry}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Verify & Send OTP</Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={resetScan}>
+          <Text style={styles.buttonText}>Back to Scan</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    );
+  }
+
+  // STEP 3: OTP Verification
+  if (step === 'otp') {
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={styles.formContainer}>
+        <Text style={styles.title}>Verify with OTP</Text>
+
+        {entryData?.identity?.profile_photo_url && (
+          <Image
+            source={{ uri: entryData.identity.profile_photo_url }}
+            style={styles.profilePhoto}
+          />
+        )}
+
+        <View style={styles.infoBox}>
+          <Text style={styles.infoLabel}>Name:</Text>
+          <Text style={styles.infoValue}>{entryData?.identity?.name || 'N/A'}</Text>
+        </View>
+
+        <View style={styles.infoBox}>
+          <Text style={styles.infoLabel}>Message:</Text>
+          <Text style={styles.infoValue}>{entryData?.message || ''}</Text>
+        </View>
+
+        <Text style={styles.label}>Enter OTP sent to {entryData?.identity?.phone_number}</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="6-digit OTP"
+          value={otp}
+          onChangeText={setOtp}
+          keyboardType="numeric"
+          maxLength={6}
+          editable={!loading}
+        />
+
+        {error && <Text style={styles.errorText}>{error}</Text>}
+
+        <TouchableOpacity
+          style={[styles.button, loading && styles.buttonDisabled]}
+          onPress={handleOtpVerification}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Verify OTP</Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={resetScan}>
+          <Text style={styles.buttonText}>Cancel</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    );
+  }
+
+  // STEP 4: Verified Success
+  if (step === 'verified') {
+    return (
+      <View style={styles.container}>
+        <View style={styles.centerContent}>
+          <Text style={styles.successIcon}>✅</Text>
+          <Text style={styles.successTitle}>Entry Verified!</Text>
+          <Text style={styles.successMessage}>{verificationResult?.message}</Text>
+
+          {verificationResult?.ticket_info && (
+            <View style={styles.infoBox}>
+              <Text style={styles.infoLabel}>Event ID:</Text>
+              <Text style={styles.infoValue}>{verificationResult.ticket_info.eventId}</Text>
+            </View>
+          )}
+
+          <TouchableOpacity style={[styles.button, styles.proceedButton]} onPress={resetScan}>
+            <Text style={styles.buttonText}>Scan Next Ticket</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   }
 
-  const verifyTicket = async (ticketData: string) => {
-    setVerifying(true);
-    
-    try {
-      let qrData;
-      try {
-        qrData = JSON.parse(ticketData);
-      } catch {
-        // If not JSON, treat as plain ticket ID
-        qrData = { tokenId: ticketData };
-      }
-
-      // Step 1: Verify QR code
-      const qrResponse = await fetch(`${API_BASE}/gate/verify-qr`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ qrData: ticketData }),
-      });
-
-      const qrResult = await qrResponse.json();
-      if (!qrResult.success) {
-        throw new Error(qrResult.error || 'Invalid QR code');
-      }
-
-      // Step 2: Multi-step verification (simplified for demo)
-      const verifyResponse = await fetch(`${API_BASE}/gate/verify`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          tokenId: qrData.tokenId,
-          step: 'complete' // Simplified verification
-        }),
-      });
-
-      const verifyResult = await verifyResponse.json();
-      
-      if (verifyResult.success) {
-        // Step 3: Mark ticket as used
-        await fetch(`${API_BASE}/gate/mark-used`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-            tokenId: qrData.tokenId,
-            timestamp: new Date().toISOString()
-          }),
-        });
-
-        setStats(prev => ({ ...prev, verified: prev.verified + 1 }));
-        setLastResult({ 
-          success: true, 
-          message: '✅ Entry Approved', 
-          ticket: qrData,
-          identity: verifyResult.identity
-        });
-        
-        Alert.alert('✅ Entry Approved', 'Ticket verified successfully');
-      } else {
-        throw new Error(verifyResult.error || 'Verification failed');
-      }
-    } catch (error) {
-      console.error('Verification error:', error);
-      setStats(prev => ({ ...prev, failed: prev.failed + 1 }));
-      setLastResult({ 
-        success: false, 
-        message: '❌ Entry Denied: ' + (error instanceof Error ? error.message : 'Unknown error')
-      });
-      
-      Alert.alert('❌ Entry Denied', error instanceof Error ? error.message : 'Verification failed');
-    } finally {
-      setVerifying(false);
-      setTimeout(() => {
-        setScanned(false);
-        setLastResult(null);
-      }, 3000);
-    }
-  };
-
-  const handleBarCodeScanned = async ({ type, data }: { type: string; data: string }) => {
-    if (scanned) return;
-    setScanned(true);
-    await verifyTicket(data);
-  };
-
-  const handleManualVerify = async () => {
-    if (!manualTicketId.trim()) {
-      Alert.alert('Error', 'Please enter a ticket ID');
-      return;
-    }
-    
-    setScanned(true);
-    await verifyTicket(manualTicketId);
-    setManualTicketId('');
-    setManualEntry(false);
-  };
-
-  return (
-    <View style={styles.container}>
-      {/* Stats Header */}
-      <View style={styles.statsHeader}>
-        <View style={styles.statItem}>
-          <Text style={styles.statNumber}>{stats.verified}</Text>
-          <Text style={styles.statLabel}>Verified</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Text style={styles.statNumber}>{stats.failed}</Text>
-          <Text style={styles.statLabel}>Failed</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Text style={styles.statRole}>{admin?.role}</Text>
-          <Text style={styles.statLabel}>Role</Text>
-        </View>
-      </View>
-
-      {manualEntry ? (
-        /* Manual Entry Mode */
-        <View style={styles.manualContainer}>
-          <Text style={styles.manualTitle}>Manual Ticket Entry</Text>
-          <TextInput
-            style={styles.manualInput}
-            placeholder="Enter Ticket ID or Token ID"
-            value={manualTicketId}
-            onChangeText={setManualTicketId}
-            autoCapitalize="none"
-          />
-          <View style={styles.manualButtons}>
-            <TouchableOpacity
-              style={[styles.button, styles.cancelButton]}
-              onPress={() => {
-                setManualEntry(false);
-                setManualTicketId('');
-              }}
-            >
-              <Text style={styles.buttonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, styles.verifyButton]}
-              onPress={handleManualVerify}
-              disabled={verifying}
-            >
-              <Text style={styles.buttonText}>
-                {verifying ? 'Verifying...' : 'Verify Ticket'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      ) : (
-        /* Camera Scanner Mode */
-        <CameraView
-          ref={cameraRef}
-          style={styles.camera}
-          onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-          barcodeScannerSettings={{
-            barcodeTypes: ['qr', 'code128', 'code39'],
-          }}
-        >
-          <View style={styles.overlay}>
-            {/* Scan Frame */}
-            <View style={styles.scanFrame}>
-              <View style={[styles.corner, styles.topLeft]} />
-              <View style={[styles.corner, styles.topRight]} />
-              <View style={[styles.corner, styles.bottomLeft]} />
-              <View style={[styles.corner, styles.bottomRight]} />
-            </View>
-            
-            <Text style={styles.scanInstruction}>
-              {scanned ? 'Processing...' : 'Align QR code within the frame'}
-            </Text>
-          </View>
-
-          {/* Verification Overlay */}
-          {verifying && (
-            <View style={styles.verifyingOverlay}>
-              <ActivityIndicator size="large" color="#fff" />
-              <Text style={styles.verifyingText}>Verifying Ticket...</Text>
-            </View>
-          )}
-
-          {/* Result Overlay */}
-          {lastResult && (
-            <View style={[
-              styles.resultOverlay, 
-              lastResult.success ? styles.successOverlay : styles.failureOverlay
-            ]}>
-              <Text style={styles.resultIcon}>
-                {lastResult.success ? '✅' : '❌'}
-              </Text>
-              <Text style={styles.resultText}>{lastResult.message}</Text>
-              {lastResult.ticket && (
-                <Text style={styles.resultSubtext}>
-                  Token ID: {lastResult.ticket.tokenId}
-                </Text>
-              )}
-              {lastResult.identity && (
-                <Text style={styles.resultSubtext}>
-                  Identity: {lastResult.identity.name}
-                </Text>
-              )}
-            </View>
-          )}
-        </CameraView>
-      )}
-
-      {/* Control Panel */}
-      <View style={styles.controlPanel}>
-        <TouchableOpacity
-          style={[styles.controlButton, styles.resetButton]}
-          onPress={() => {
-            setScanned(false);
-            setLastResult(null);
-          }}
-          disabled={verifying}
-        >
-          <Text style={styles.controlButtonText}>🔄 Reset Scanner</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.controlButton, styles.manualButton]}
-          onPress={() => setManualEntry(true)}
-          disabled={verifying}
-        >
-          <Text style={styles.controlButtonText}>⌨️ Manual Entry</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+  return null;
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
-  },
-  statsHeader: {
-    flexDirection: 'row',
-    backgroundColor: '#1a1a1a',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    justifyContent: 'space-around',
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  statRole: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#4a90e2',
-    textTransform: 'uppercase',
-  },
-  statLabel: {
-    fontSize: 10,
-    color: '#888',
-    marginTop: 2,
+    backgroundColor: '#f5f5f5',
   },
   camera: {
     flex: 1,
   },
-  overlay: {
+  scanOverlay: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  scanFrame: {
-    width: 280,
-    height: 280,
-    position: 'relative',
+  scanBox: {
+    width: 250,
+    height: 250,
+    borderWidth: 3,
+    borderColor: '#4CAF50',
+    borderRadius: 20,
+    backgroundColor: 'transparent',
   },
-  corner: {
-    position: 'absolute',
-    width: 30,
-    height: 30,
-    borderColor: '#4a90e2',
-    borderWidth: 4,
-  },
-  topLeft: {
-    top: 0,
-    left: 0,
-    borderRightWidth: 0,
-    borderBottomWidth: 0,
-  },
-  topRight: {
-    top: 0,
-    right: 0,
-    borderLeftWidth: 0,
-    borderBottomWidth: 0,
-  },
-  bottomLeft: {
-    bottom: 0,
-    left: 0,
-    borderRightWidth: 0,
-    borderTopWidth: 0,
-  },
-  bottomRight: {
-    bottom: 0,
-    right: 0,
-    borderLeftWidth: 0,
-    borderTopWidth: 0,
-  },
-  scanInstruction: {
-    marginTop: 32,
+  scanText: {
+    marginTop: 20,
     fontSize: 16,
-    color: '#fff',
-    fontWeight: '600',
-    textAlign: 'center',
-    paddingHorizontal: 20,
-  },
-  verifyingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  verifyingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#fff',
+    color: 'white',
     fontWeight: '600',
   },
-  resultOverlay: {
+  scanResultContainer: {
     position: 'absolute',
-    bottom: 120,
+    bottom: 20,
     left: 20,
     right: 20,
-    padding: 20,
+    backgroundColor: 'white',
+    padding: 16,
     borderRadius: 12,
-    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
-  successOverlay: {
-    backgroundColor: '#10b981',
-  },
-  failureOverlay: {
-    backgroundColor: '#ef4444',
-  },
-  resultIcon: {
-    fontSize: 40,
-    marginBottom: 8,
-  },
-  resultText: {
+  scanResultText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
-    textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: 12,
+    color: '#333',
   },
-  resultSubtext: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.9)',
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  controlPanel: {
-    backgroundColor: '#1a1a1a',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#333',
-    flexDirection: 'row',
-    gap: 12,
-  },
-  controlButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  resetButton: {
-    backgroundColor: '#4a90e2',
-  },
-  manualButton: {
-    backgroundColor: '#6b7280',
-  },
-  controlButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  manualContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#1a1a1a',
-    padding: 20,
+  manualPanel: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 16,
+    backgroundColor: 'white',
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
+    elevation: 4,
   },
   manualTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '700',
-    color: '#fff',
-    marginBottom: 20,
+    marginBottom: 6,
+    color: '#333',
   },
-  manualInput: {
-    width: '100%',
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 16,
-    marginBottom: 20,
-    textAlign: 'center',
+  manualText: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 12,
   },
-  manualButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    width: '100%',
-  },
-  button: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#6b7280',
-  },
-  verifyButton: {
-    backgroundColor: '#10b981',
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 16,
+
+  formContainer: {
+    padding: 20,
+    flexGrow: 1,
   },
   centerContent: {
     flex: 1,
@@ -489,29 +493,110 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
-  noPermissionText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  permissionSubtext: {
-    fontSize: 14,
-    color: '#ccc',
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-  permissionButton: {
-    backgroundColor: '#4a90e2',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 8,
-  },
-  permissionButtonText: {
-    color: '#fff',
+  permissionText: {
+    fontSize: 18,
     fontWeight: '600',
+    marginBottom: 20,
+    textAlign: 'center',
+    color: '#333',
+  },
+
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 20,
+    color: '#333',
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+    color: '#666',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
     fontSize: 16,
+    backgroundColor: 'white',
+  },
+  infoBox: {
+    backgroundColor: 'white',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
+  },
+  infoLabel: {
+    fontSize: 12,
+    color: '#999',
+    marginBottom: 4,
+  },
+  infoValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+
+  profilePhoto: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+
+  button: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  proceedButton: {
+    backgroundColor: '#2196F3',
+  },
+  manualButton: {
+    marginBottom: 0,
+  },
+  cancelButton: {
+    backgroundColor: '#f44336',
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  errorText: {
+    color: '#f44336',
+    marginBottom: 12,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+
+  successIcon: {
+    fontSize: 60,
+    marginBottom: 20,
+  },
+  successTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 12,
+    color: '#4CAF50',
+    textAlign: 'center',
+  },
+  successMessage: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
   },
 });

@@ -1,80 +1,115 @@
 const { ethers } = require('ethers')
 
+// Minimal ABI - properly formatted for ethers.js v6
 const TICKET_ABI = [
   {
-    type: 'function',
+    inputs: [
+      { internalType: 'uint256', name: 'eventId', type: 'uint256' }
+    ],
     name: 'getEvent',
-    stateMutability: 'view',
-    inputs: [
-      { name: 'eventId', type: 'uint256' }
-    ],
     outputs: [
       {
-        name: '',
-        type: 'tuple',
         components: [
-          { name: 'eventId', type: 'uint256' },
-          { name: 'title', type: 'string' },
-          { name: 'venue', type: 'string' },
-          { name: 'date', type: 'uint256' },
-          { name: 'price', type: 'uint256' },
-          { name: 'totalTickets', type: 'uint256' },
-          { name: 'ticketsMinted', type: 'uint256' },
-          { name: 'metadataURI', type: 'string' }
-        ]
+          { internalType: 'uint256', name: 'eventId', type: 'uint256' },
+          { internalType: 'string', name: 'title', type: 'string' },
+          { internalType: 'string', name: 'venue', type: 'string' },
+          { internalType: 'uint256', name: 'date', type: 'uint256' },
+          { internalType: 'uint256', name: 'price', type: 'uint256' },
+          { internalType: 'uint256', name: 'totalTickets', type: 'uint256' },
+          { internalType: 'uint256', name: 'ticketsMinted', type: 'uint256' },
+          { internalType: 'string', name: 'metadataURI', type: 'string' }
+        ],
+        internalType: 'struct TicketNFT.EventInfo',
+        name: '',
+        type: 'tuple'
       }
-    ]
-  },
-  {
-    type: 'function',
-    name: 'mintTicket',
-    stateMutability: 'payable',
-    inputs: [
-      { name: 'to', type: 'address' },
-      { name: 'eventId', type: 'uint256' },
-      { name: 'commitment', type: 'bytes32' }
     ],
-    outputs: [
-      { name: '', type: 'uint256' }
-    ]
+    stateMutability: 'view',
+    type: 'function'
   },
   {
-    type: 'function',
-    name: 'markUsed',
-    stateMutability: 'nonpayable',
     inputs: [
-      { name: 'tokenId', type: 'uint256' },
-      { name: 'commitment', type: 'bytes32' }
+      { internalType: 'uint256', name: 'tokenId', type: 'uint256' }
     ],
-    outputs: []
-  },
-  {
-    type: 'function',
     name: 'getTicketInfo',
-    stateMutability: 'view',
-    inputs: [
-      { name: 'tokenId', type: 'uint256' }
-    ],
     outputs: [
       {
-        name: '',
-        type: 'tuple',
         components: [
-          { name: 'eventId', type: 'uint256' },
-          { name: 'commitment', type: 'bytes32' },
-          { name: 'used', type: 'bool' }
-        ]
+          { internalType: 'uint256', name: 'eventId', type: 'uint256' },
+          { internalType: 'bytes32', name: 'commitment', type: 'bytes32' },
+          { internalType: 'bool', name: 'used', type: 'bool' }
+        ],
+        internalType: 'struct TicketNFT.TicketInfo',
+        name: '',
+        type: 'tuple'
       }
-    ]
+    ],
+    stateMutability: 'view',
+    type: 'function'
   },
   {
-    type: 'event',
-    name: 'Transfer',
     inputs: [
-      { name: 'from', type: 'address', indexed: true },
-      { name: 'to', type: 'address', indexed: true },
-      { name: 'tokenId', type: 'uint256', indexed: true }
-    ]
+      { internalType: 'string', name: 'title', type: 'string' },
+      { internalType: 'string', name: 'venue', type: 'string' },
+      { internalType: 'uint256', name: 'date', type: 'uint256' },
+      { internalType: 'uint256', name: 'price', type: 'uint256' },
+      { internalType: 'uint256', name: 'totalTickets', type: 'uint256' },
+      { internalType: 'string', name: 'metadataURI', type: 'string' }
+    ],
+    name: 'createEvent',
+    outputs: [ { internalType: 'uint256', name: '', type: 'uint256' } ],
+    stateMutability: 'nonpayable',
+    type: 'function'
+  },
+  {
+    inputs: [
+      { internalType: 'uint256', name: 'eventId', type: 'uint256' },
+      { internalType: 'string', name: 'newURI', type: 'string' }
+    ],
+    name: 'updateEventMetadata',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function'
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'to', type: 'address' },
+      { internalType: 'uint256', name: 'eventId', type: 'uint256' },
+      { internalType: 'bytes32', name: 'commitment', type: 'bytes32' }
+    ],
+    name: 'mintTicket',
+    outputs: [ { internalType: 'uint256', name: '', type: 'uint256' } ],
+    stateMutability: 'nonpayable',
+    type: 'function'
+  },
+  {
+    inputs: [
+      { internalType: 'uint256', name: 'tokenId', type: 'uint256' },
+      { internalType: 'bytes32', name: 'commitment', type: 'bytes32' }
+    ],
+    name: 'markUsed',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function'
+  },
+  {
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'from', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'to', type: 'address' },
+      { indexed: true, internalType: 'uint256', name: 'tokenId', type: 'uint256' }
+    ],
+    name: 'Transfer',
+    type: 'event'
+  },
+  {
+    inputs: [
+      { indexed: true, internalType: 'uint256', name: 'tokenId', type: 'uint256' },
+      { indexed: true, internalType: 'address', name: 'to', type: 'address' },
+      { indexed: true, internalType: 'uint256', name: 'eventId', type: 'uint256' },
+      { indexed: false, internalType: 'bytes32', name: 'commitment', type: 'bytes32' }
+    ],
+    name: 'TicketMinted',
+    type: 'event'
   }
 ]
 
@@ -91,7 +126,11 @@ const getContractAddress = () => {
     throw new Error('CONTRACT_ADDRESS is not configured')
   }
 
-  return process.env.CONTRACT_ADDRESS.trim()
+  const address = process.env.CONTRACT_ADDRESS.trim()
+  if (!ethers.isAddress(address)) {
+    throw new Error(`Invalid contract address: ${address}`)
+  }
+  return address
 }
 
 const getPrivateKey = () => {
@@ -99,22 +138,66 @@ const getPrivateKey = () => {
     throw new Error('PRIVATE_KEY is not configured')
   }
 
-  return process.env.PRIVATE_KEY.trim()
+  const key = process.env.PRIVATE_KEY.trim()
+  if (!key.startsWith('0x') || key.length !== 66) {
+    throw new Error(`Invalid private key format. Expected 0x + 64 hex chars, got: ${key.length} chars`)
+  }
+  return key
 }
 
 const getReadContract = () => {
-  return new ethers.Contract(getContractAddress(), TICKET_ABI, getProvider())
+  try {
+    const address = getContractAddress()
+    const provider = getProvider()
+    const contract = new ethers.Contract(address, TICKET_ABI, provider)
+    return contract
+  } catch (err) {
+    console.error('[getReadContract] Error:', err.message)
+    throw err
+  }
 }
 
 const getWriteContract = () => {
-  const wallet = new ethers.Wallet(getPrivateKey(), getProvider())
-  return new ethers.Contract(getContractAddress(), TICKET_ABI, wallet)
+  try {
+    const address = getContractAddress()
+    const privateKey = getPrivateKey()
+    const provider = getProvider()
+    const wallet = new ethers.Wallet(privateKey, provider)
+    const contract = new ethers.Contract(address, TICKET_ABI, wallet)
+    return contract
+  } catch (err) {
+    console.error('[getWriteContract] Error:', err.message)
+    throw err
+  }
 }
 
 const getEvent = async (eventId) => {
-  const contract = getReadContract()
   try {
-    const event = await contract.getEvent(eventId)
+    console.log(`[getEvent] Fetching event ${eventId} from chain`)
+    const provider = getProvider()
+    const address = getContractAddress()
+    
+    // Test basic contract connection
+    const code = await provider.getCode(address)
+    if (code === '0x') {
+      throw new Error('No contract found at address')
+    }
+    console.log('[getEvent] Contract code verified at address')
+    
+    // Try calling directly with ethers call
+    const contract = getReadContract()
+    console.log('[getEvent] Calling getEvent on contract...')
+    
+    // Use simpler approach - call directly
+    const result = await provider.call({
+      to: address,
+      data: contract.interface.encodeFunctionData('getEvent', [eventId])
+    })
+    
+    const decoded = contract.interface.decodeFunctionResult('getEvent', result)
+    console.log('[getEvent] Raw result:', decoded)
+    
+    const event = decoded[0]
     return {
       eventId: Number(event.eventId),
       title: event.title,
@@ -126,6 +209,11 @@ const getEvent = async (eventId) => {
       metadataURI: event.metadataURI
     }
   } catch (err) {
+    console.error('[getEvent] Error:', {
+      message: err.message,
+      code: err.code,
+      stack: err.stack
+    })
     throw new Error(`Failed to fetch event: ${err.message}`)
   }
 }
@@ -194,16 +282,72 @@ const markUsed = async (tokenId, commitment) => {
 const getUserTickets = async (walletAddress) => {
   const contract = getReadContract()
   try {
-    const filter = contract.filters.Transfer(null, walletAddress)
-    const events = await contract.queryFilter(filter)
+    const provider = getProvider()
+    const currentBlock = await provider.getBlockNumber()
     
-    const tokenIds = []
-    for (const event of events) {
-      // event.args[2] is the tokenId
-      tokenIds.push(Number(event.args[2]))
+    console.log(`[getUserTickets] Querying for wallet: ${walletAddress}`)
+    console.log(`[getUserTickets] Current block: ${currentBlock}`)
+    
+    // Query recent blocks only - Alchemy free tier is aggressive
+    // Search last 5000 blocks (~18 hours) with delays to avoid rate limiting
+    const fromBlock = Math.max(currentBlock - 5000, 0)
+    const toBlock = currentBlock
+    
+    console.log(`[getUserTickets] Searching blocks ${fromBlock} to ${toBlock}`)
+    
+    const allTokenIds = new Set()
+    let chunksProcessed = 0
+    let eventsFound = 0
+    const chunkSize = 10
+    
+    // Helper to add delay between requests
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+    
+    for (let start = fromBlock; start <= toBlock; start += chunkSize) {
+      const end = Math.min(start + chunkSize - 1, toBlock)
+      try {
+        const filter = contract.filters.Transfer(null, walletAddress)
+        const events = await contract.queryFilter(filter, start, end)
+        
+        chunksProcessed++
+        eventsFound += events.length
+        
+        for (const event of events) {
+          allTokenIds.add(Number(event.args[2]))
+        }
+        
+        // Add 100ms delay between requests to avoid rate limiting
+        // This makes queries slower but prevents 429 errors
+        if (start + chunkSize <= toBlock) {
+          await delay(100)
+        }
+      } catch (err) {
+        // If rate limited, add longer delay and retry once
+        if (err.code === 429 || err.message.includes('429')) {
+          console.warn(`[getUserTickets] Rate limited on block range ${start}-${end}, waiting 2s before retry...`)
+          await delay(2000)
+          try {
+            const filter = contract.filters.Transfer(null, walletAddress)
+            const events = await contract.queryFilter(filter, start, end)
+            
+            chunksProcessed++
+            eventsFound += events.length
+            
+            for (const event of events) {
+              allTokenIds.add(Number(event.args[2]))
+            }
+          } catch (retryErr) {
+            console.warn(`[getUserTickets] Retry failed for ${start}-${end}:`, retryErr.message)
+          }
+        } else {
+          console.warn(`[getUserTickets] Failed to query block range ${start}-${end}:`, err.message)
+        }
+      }
     }
-
-    return tokenIds
+    
+    console.log(`[getUserTickets] Completed: ${chunksProcessed} chunks, ${eventsFound} events, ${allTokenIds.size} unique tokens`)
+    
+    return Array.from(allTokenIds)
   } catch (err) {
     throw new Error(`Failed to fetch user tickets: ${err.message}`)
   }

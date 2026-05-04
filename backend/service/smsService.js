@@ -9,8 +9,8 @@ const getTwilioClient = () => {
 }
 
 const sendOtpSms = async (phoneNumber, otp) => {
-  if (!process.env.TWILIO_PHONE_NUMBER) {
-    throw new Error('TWILIO_PHONE_NUMBER is not configured')
+  if (!process.env.TWILIO_PHONE) {
+    throw new Error('TWILIO_PHONE is not configured')
   }
 
   const client = getTwilioClient()
@@ -18,7 +18,7 @@ const sendOtpSms = async (phoneNumber, otp) => {
   try {
     const message = await client.messages.create({
       body: `Your ProofPass verification code is: ${otp}. Valid for 10 minutes.`,
-      from: process.env.TWILIO_PHONE_NUMBER,
+      from: process.env.TWILIO_PHONE,
       to: phoneNumber
     })
 

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
@@ -12,24 +13,36 @@ const emptyForm = {
 };
 
 const AuthPage = () => {
-  const { login, setAuthError, error } = useAuth();
+  const navigate = useNavigate();
+  const { login, isAuthenticated, error, setAuthError } = useAuth();
   const [activeTab, setActiveTab] = useState('user');
   const [authStep, setAuthStep] = useState('form');
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(false);
+
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   const resolveWalletAddress = (data) => {
     return data.wallet_address || data.user?.wallet_address || data.user?.walletAddress || null;
   };
 
   const completeUserLogin = (data) => {
-    login(data.user, data.token, resolveWalletAddress(data), 'user');
+    const walletAddr = resolveWalletAddress(data);
+    login(data.user, data.token, walletAddr, 'user');
     setAuthStep('form');
     setForm(emptyForm);
+    // Redirect happens via useEffect watching isAuthenticated
+    setTimeout(() => navigate('/'), 500);
   };
 
   const handleUserAuth = async () => {
     setLoading(true);
+    setAuthError(null);
 
     try {
       const response = await fetch(`${API_BASE}/user/auth`, {
@@ -52,6 +65,7 @@ const AuthPage = () => {
         return;
       }
 
+      // Login successful
       completeUserLogin(data);
     } catch (err) {
       setAuthError(err.message);
@@ -62,6 +76,7 @@ const AuthPage = () => {
 
   const handleUserOtpVerify = async () => {
     setLoading(true);
+    setAuthError(null);
 
     try {
       const response = await fetch(`${API_BASE}/user/auth`, {
@@ -79,6 +94,7 @@ const AuthPage = () => {
         throw new Error(data.message || data.error || 'Failed to verify OTP');
       }
 
+      // OTP verified and signup complete
       completeUserLogin(data);
     } catch (err) {
       setAuthError(err.message);
@@ -89,6 +105,7 @@ const AuthPage = () => {
 
   const handleAdminLogin = async () => {
     setLoading(true);
+    setAuthError(null);
 
     try {
       const response = await fetch(`${API_BASE}/admin/login`, {
@@ -107,6 +124,9 @@ const AuthPage = () => {
 
       login(data.admin, data.token, null, 'admin');
       setForm(emptyForm);
+      setAuthStep('form');
+      // Redirect admin to dashboard or admin panel
+      setTimeout(() => navigate('/admin'), 500);
     } catch (err) {
       setAuthError(err.message);
     } finally {
@@ -116,6 +136,7 @@ const AuthPage = () => {
 
   const handleMetaMaskAuth = async () => {
     setLoading(true);
+    setAuthError(null);
 
     try {
       if (!window.ethereum) {
@@ -139,6 +160,7 @@ const AuthPage = () => {
       };
 
       login(mockUser, `metamask_token_${Date.now()}`, walletAddress, 'user');
+      setTimeout(() => navigate('/'), 500);
     } catch (err) {
       setAuthError(err.message);
     } finally {
@@ -151,345 +173,249 @@ const AuthPage = () => {
   };
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      minHeight: '100vh',
-      background: '#fafafa'
-    }}>
-      <div style={{
-        background: '#000',
-        color: '#fff',
-        padding: '3rem',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        borderRight: '3px solid #000'
-      }}>
-        <div>
-          <h1 style={{
-            fontSize: '3rem',
-            fontFamily: 'Syne, sans-serif',
-            lineHeight: 1,
-            marginBottom: '2rem'
-          }}>
-            NFT <span style={{ color: '#4a90e2' }}>Tickets</span><br/>
-            Web3 <span style={{ color: '#4a90e2' }}>Events</span>
+    <div style={{ minHeight: '100vh', background: '#fafafa', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+      <div style={{ maxWidth: '500px', width: '100%' }}>
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <h1 style={{ fontSize: '2rem', fontFamily: 'Syne, sans-serif', margin: '0 0 0.5rem 0' }}>
+            🎫 BlockMyShow
           </h1>
-          <p style={{ fontSize: '1.1rem', opacity: 0.8, marginBottom: '2rem' }}>
-            Secure, identity-bound event tickets powered by blockchain technology
-          </p>
-          <div style={{ fontSize: '0.9rem', opacity: 0.6 }}>
-            <div>✓ Non-transferable NFT tickets</div>
-            <div>✓ Aadhaar-based identity verification</div>
-            <div>✓ Fraud-proof entry system</div>
-            <div>✓ Automatic wallet creation</div>
+          <p style={{ color: '#666', margin: 0 }}>NFT-Powered Event Ticketing</p>
+        </div>
+
+        {/* Tab Navigation */}
+        <div style={{
+          display: 'flex',
+          gap: '12px',
+          marginBottom: '2rem',
+          borderBottom: '2px solid #e5e7eb'
+        }}>
+          {['user', 'admin'].map(tab => (
+            <button
+              key={tab}
+              onClick={() => {
+                setActiveTab(tab);
+                setAuthStep('form');
+                setForm(emptyForm);
+                setAuthError(null);
+              }}
+              style={{
+                flex: 1,
+                padding: '12px',
+                background: 'none',
+                border: 'none',
+                borderBottom: activeTab === tab ? '3px solid #000' : 'none',
+                fontSize: '1rem',
+                fontWeight: activeTab === tab ? '700' : '500',
+                cursor: 'pointer',
+                color: activeTab === tab ? '#000' : '#999',
+                transition: 'all 0.2s'
+              }}
+            >
+              {tab === 'user' ? 'Attendee' : 'Admin'}
+            </button>
+          ))}
+        </div>
+
+        {error && (
+          <div style={{
+            background: '#fee2e2',
+            color: '#991b1b',
+            padding: '12px',
+            borderRadius: '8px',
+            marginBottom: '1.5rem',
+            fontSize: '0.9rem'
+          }}>
+            {error}
           </div>
-        </div>
-        <div style={{ fontSize: '0.8rem', opacity: 0.5 }}>
-          BlockMyShow © 2026
-        </div>
-      </div>
+        )}
 
-      <div style={{
-        padding: '3rem',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center'
-      }}>
-        <div style={{ maxWidth: '400px' }}>
-          <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>
-            {authStep === 'otp' ? 'Verify OTP' : 'Welcome to BlockMyShow'}
-          </h2>
-          <p style={{ color: '#666', fontSize: '0.9rem', marginBottom: '2rem' }}>
-            {authStep === 'otp'
-              ? 'Enter the 6-digit code sent to your email'
-              : 'Choose your preferred login method'}
-          </p>
-
-          {error && (
-            <div style={{
-              background: '#fee2e2',
-              color: '#dc2626',
-              padding: '12px',
-              marginBottom: '1rem',
-              fontSize: '12px',
-              border: '2px solid #dc2626',
-              borderRadius: '4px'
-            }}>
-              {error}
-            </div>
-          )}
-
-          {authStep === 'form' && (
-            <div style={{
-              display: 'flex',
-              gap: '8px',
-              marginBottom: '1.5rem'
-            }}>
-              {['user', 'admin', 'google', 'metamask'].map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => {
-                    setActiveTab(tab);
-                    setAuthError(null);
+        {/* User Auth Tab */}
+        {activeTab === 'user' && (
+          <div>
+            {authStep === 'form' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <input
+                  type="email"
+                  placeholder="Email address"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  style={{
+                    padding: '12px',
+                    border: '1px solid #ddd',
+                    borderRadius: '8px',
+                    fontSize: '1rem'
                   }}
+                />
+                <input
+                  type="password"
+                  placeholder="Password"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  style={{
+                    padding: '12px',
+                    border: '1px solid #ddd',
+                    borderRadius: '8px',
+                    fontSize: '1rem'
+                  }}
+                />
+                <button
+                  onClick={handleUserAuth}
                   disabled={loading}
                   style={{
-                    flex: 1,
-                    padding: '10px 8px',
-                    border: activeTab === tab ? '2px solid #000' : '2px solid #ccc',
-                    background: activeTab === tab ? '#000' : '#fff',
-                    color: activeTab === tab ? '#fff' : '#000',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    fontFamily: 'monospace',
-                    fontSize: '11px',
-                    fontWeight: 'bold',
-                    borderRadius: '4px',
-                    transition: 'all 0.2s',
-                    opacity: loading ? 0.6 : 1
+                    padding: '12px',
+                    background: loading ? '#ccc' : '#000',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    cursor: loading ? 'not-allowed' : 'pointer'
                   }}
                 >
-                  {tab === 'user' ? '📧' : tab === 'admin' ? '🛠' : tab === 'google' ? '🔵' : '🦊'} {tab.toUpperCase()}
+                  {loading ? 'Loading...' : 'Login / Sign Up'}
                 </button>
-              ))}
-            </div>
-          )}
 
-          {authStep === 'otp' && (
-            <div>
-              <input
-                type="text"
-                placeholder="Enter 6-digit OTP"
-                value={form.otp}
-                onChange={e => setForm({ ...form, otp: e.target.value.replace(/\D/g, '').slice(0, 6) })}
-                maxLength="6"
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  marginBottom: '16px',
-                  border: '2px solid #ddd',
-                  borderRadius: '4px',
-                  fontFamily: 'monospace',
-                  fontSize: '20px',
-                  letterSpacing: '4px',
-                  textAlign: 'center'
-                }}
-              />
-              <button
-                onClick={handleUserOtpVerify}
-                disabled={loading || form.otp.length !== 6}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  background: '#000',
-                  color: '#fff',
-                  border: '2px solid #000',
-                  cursor: loading || form.otp.length !== 6 ? 'not-allowed' : 'pointer',
-                  fontFamily: 'monospace',
-                  marginBottom: '8px',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  opacity: loading || form.otp.length !== 6 ? 0.6 : 1
-                }}
-              >
-                {loading ? 'Verifying...' : 'Verify OTP'}
-              </button>
-              <button
-                onClick={() => {
-                  setAuthStep('form');
-                  setForm({ ...form, otp: '' });
-                  setAuthError(null);
-                }}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  background: '#fff',
-                  color: '#000',
-                  border: '2px solid #ddd',
-                  cursor: 'pointer',
-                  fontFamily: 'monospace',
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }}
-              >
-                Change Method
-              </button>
-            </div>
-          )}
+                <div style={{ display: 'flex', gap: '10px', marginTop: '1rem' }}>
+                  <button
+                    onClick={handleMetaMaskAuth}
+                    disabled={loading}
+                    style={{
+                      flex: 1,
+                      padding: '12px',
+                      background: '#f97316',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '0.9rem',
+                      fontWeight: '600',
+                      cursor: loading ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    🦊 MetaMask
+                  </button>
+                  <button
+                    onClick={handleGoogleAuth}
+                    style={{
+                      flex: 1,
+                      padding: '12px',
+                      background: '#ddd',
+                      color: '#000',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '0.9rem',
+                      fontWeight: '600',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🔵 Google
+                  </button>
+                </div>
+              </div>
+            )}
 
-          {authStep === 'form' && activeTab === 'user' && (
-            <div>
-              <input
-                type="email"
-                placeholder="Email address"
-                value={form.email}
-                onChange={e => setForm({ ...form, email: e.target.value })}
-                disabled={loading}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  marginBottom: '12px',
-                  border: '2px solid #ddd',
-                  borderRadius: '4px',
-                  fontFamily: 'monospace',
-                  fontSize: '14px',
-                  opacity: loading ? 0.6 : 1
-                }}
-              />
-              <input
-                type="password"
-                placeholder="Password"
-                value={form.password}
-                onChange={e => setForm({ ...form, password: e.target.value })}
-                disabled={loading}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  marginBottom: '16px',
-                  border: '2px solid #ddd',
-                  borderRadius: '4px',
-                  fontFamily: 'monospace',
-                  fontSize: '14px',
-                  opacity: loading ? 0.6 : 1
-                }}
-              />
-              <button
-                onClick={handleUserAuth}
-                disabled={loading || !form.email || !form.password}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  background: '#000',
-                  color: '#fff',
-                  border: '2px solid #000',
-                  cursor: loading || !form.email || !form.password ? 'not-allowed' : 'pointer',
-                  fontFamily: 'monospace',
-                  marginBottom: '8px',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  opacity: loading || !form.email || !form.password ? 0.6 : 1
-                }}
-              >
-                {loading ? 'Checking...' : 'Login / Signup'}
-              </button>
-            </div>
-          )}
+            {authStep === 'otp' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <p style={{ color: '#666', marginBottom: '1rem' }}>
+                  Enter OTP sent to <strong>{form.email}</strong>
+                </p>
+                <input
+                  type="text"
+                  placeholder="6-digit OTP"
+                  value={form.otp}
+                  onChange={(e) => setForm({ ...form, otp: e.target.value.slice(0, 6) })}
+                  maxLength="6"
+                  style={{
+                    padding: '12px',
+                    border: '1px solid #ddd',
+                    borderRadius: '8px',
+                    fontSize: '1rem'
+                  }}
+                />
+                <button
+                  onClick={handleUserOtpVerify}
+                  disabled={loading}
+                  style={{
+                    padding: '12px',
+                    background: loading ? '#ccc' : '#000',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    cursor: loading ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {loading ? 'Verifying...' : 'Verify OTP'}
+                </button>
+                <button
+                  onClick={() => {
+                    setAuthStep('form');
+                    setForm({ ...form, otp: '' });
+                  }}
+                  style={{
+                    padding: '12px',
+                    background: '#f3f4f6',
+                    color: '#000',
+                    border: '1px solid #ddd',
+                    borderRadius: '8px',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Back
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
-          {authStep === 'form' && activeTab === 'admin' && (
-            <div>
-              <input
-                type="text"
-                placeholder="Admin username"
-                value={form.username}
-                onChange={e => setForm({ ...form, username: e.target.value })}
-                disabled={loading}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  marginBottom: '12px',
-                  border: '2px solid #ddd',
-                  borderRadius: '4px',
-                  fontFamily: 'monospace',
-                  fontSize: '14px',
-                  opacity: loading ? 0.6 : 1
-                }}
-              />
-              <input
-                type="password"
-                placeholder="Password"
-                value={form.password}
-                onChange={e => setForm({ ...form, password: e.target.value })}
-                disabled={loading}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  marginBottom: '16px',
-                  border: '2px solid #ddd',
-                  borderRadius: '4px',
-                  fontFamily: 'monospace',
-                  fontSize: '14px',
-                  opacity: loading ? 0.6 : 1
-                }}
-              />
-              <button
-                onClick={handleAdminLogin}
-                disabled={loading || !form.username || !form.password}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  background: '#000',
-                  color: '#fff',
-                  border: '2px solid #000',
-                  cursor: loading || !form.username || !form.password ? 'not-allowed' : 'pointer',
-                  fontFamily: 'monospace',
-                  marginBottom: '8px',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  opacity: loading || !form.username || !form.password ? 0.6 : 1
-                }}
-              >
-                {loading ? 'Signing in...' : 'Admin Login'}
-              </button>
-            </div>
-          )}
-
-          {authStep === 'form' && activeTab === 'google' && (
-            <div>
-              <button
-                onClick={handleGoogleAuth}
-                disabled={loading}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  background: '#4285F4',
-                  color: '#fff',
-                  border: '2px solid #4285F4',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  fontFamily: 'monospace',
-                  fontWeight: 'bold',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  opacity: loading ? 0.6 : 1
-                }}
-              >
-                Continue with Google
-              </button>
-            </div>
-          )}
-
-          {authStep === 'form' && activeTab === 'metamask' && (
-            <div>
-              <button
-                onClick={handleMetaMaskAuth}
-                disabled={loading}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  background: '#fff8f0',
-                  color: '#000',
-                  border: '2px solid #e2761b',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  fontFamily: 'monospace',
-                  fontWeight: 'bold',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  marginBottom: '12px',
-                  opacity: loading ? 0.6 : 1
-                }}
-              >
-                🦊 {loading ? 'Connecting...' : 'Connect MetaMask Wallet'}
-              </button>
-              <p style={{ fontSize: '11px', color: '#666', textAlign: 'center' }}>
-                Your wallet address will be used for NFT ticket delivery
-              </p>
-            </div>
-          )}
-        </div>
+        {/* Admin Auth Tab */}
+        {activeTab === 'admin' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <input
+              type="text"
+              placeholder="Admin username"
+              value={form.username}
+              onChange={(e) => setForm({ ...form, username: e.target.value })}
+              style={{
+                padding: '12px',
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                fontSize: '1rem'
+              }}
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              style={{
+                padding: '12px',
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                fontSize: '1rem'
+              }}
+            />
+            <button
+              onClick={handleAdminLogin}
+              disabled={loading}
+              style={{
+                padding: '12px',
+                background: loading ? '#ccc' : '#000',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '1rem',
+                fontWeight: '600',
+                cursor: loading ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {loading ? 'Loading...' : 'Admin Login'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

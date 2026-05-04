@@ -67,7 +67,7 @@ npx expo start --web
 #### Login Flow
 - **Input Fields**: Username, password
 - **Test Credentials**: `admin_user` / `admin123`
-- **API Call**: `POST /api/v1/auth/admin-login`
+- **API Call**: `POST /api/admin/login`
 - **Response**: Admin object with role and JWT token
 - **Storage**: Saves token and admin data to AsyncStorage
 - **Navigation**: Redirects to role-based tab layout
@@ -102,7 +102,7 @@ npx expo start --web
 
 #### Event List Display
 - **Page Load**: 
-  - **API Call**: `GET /api/v1/events`
+  - **API Call**: `GET /api/events`
   - Shows all events with pagination
   - Pull-to-refresh functionality
 
@@ -117,14 +117,14 @@ npx expo start --web
 - **Edit Button**: Opens edit modal (coming soon)
 - **Stats Button**: Shows detailed event statistics
 - **Cancel Button**: 
-  - **API Call**: `DELETE /api/v1/events/:id`
+  - **API Call**: `DELETE /api/events/:id`
   - Confirms cancellation with refund info
 
 #### Create Event Modal
 - **Form Fields**:
   - Title, venue, date, price
   - Total tickets, description
-- **API Call**: `POST /api/v1/events`
+- **API Call**: `POST /api/events`
 - **Validation**: Client-side and server-side validation
 - **Success**: Refreshes event list
 
@@ -145,16 +145,16 @@ npx expo start --web
 
 #### Verification Process
 1. **QR Scan**: 
-   - **API Call**: `POST /api/v1/gate/verify-qr`
+  - **API Call**: `POST /api/gate/verify-qr`
    - Validates QR code format and ticket existence
 
 2. **Multi-Step Verification**:
-   - **API Call**: `POST /api/v1/gate/verify`
+  - **API Call**: `POST /api/gate/verify`
    - Verifies identity, OTP, commitment
    - Shows verification progress
 
 3. **Mark as Used**:
-   - **API Call**: `POST /api/v1/gate/mark-used`
+  - **API Call**: `POST /api/gate/mark-used`
    - Updates ticket status on blockchain
    - Prevents duplicate entry
 
@@ -180,7 +180,7 @@ npx expo start --web
 ### Authentication APIs
 ```typescript
 // Admin login
-POST /api/v1/auth/admin-login
+POST /api/admin/login
 {
   username: string,
   password: string
@@ -190,10 +190,10 @@ POST /api/v1/auth/admin-login
 ### Event Management APIs
 ```typescript
 // Get all events
-GET /api/v1/events
+GET /api/events
 
 // Create event (admin only)
-POST /api/v1/events
+POST /api/events
 {
   title: string,
   venue: string,
@@ -204,22 +204,22 @@ POST /api/v1/events
 }
 
 // Update event (admin only)
-PUT /api/v1/events/:id
+PUT /api/events/:id
 
 // Cancel event (admin only)
-DELETE /api/v1/events/:id
+DELETE /api/events/:id
 ```
 
 ### Gate Verification APIs
 ```typescript
 // Verify QR code
-POST /api/v1/gate/verify-qr
+POST /api/gate/verify-qr
 {
   qrData: string
 }
 
 // Multi-step verification
-POST /api/v1/gate/verify
+POST /api/gate/verify
 {
   tokenId: number,
   eventId: string,
@@ -227,17 +227,17 @@ POST /api/v1/gate/verify
 }
 
 // Mark ticket as used
-POST /api/v1/gate/mark-used
+POST /api/gate/mark-used
 {
   tokenId: number,
   timestamp: string
 }
 
 // Get verification stats
-GET /api/v1/gate/stats?eventId=event_1
+GET /api/gate/stats?eventId=event_1
 
 // Get operator performance
-GET /api/v1/gate/operator-stats?eventId=event_1&operatorId=op_1
+GET /api/gate/operator-stats?eventId=event_1&operatorId=op_1
 ```
 
 ## Screen Structure
@@ -390,7 +390,7 @@ export default {
     version: "1.0.0",
     platforms: ["ios", "android"],
     extra: {
-      apiUrl: process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000/api/v1"
+      apiUrl: process.env.EXPO_PUBLIC_API_URL || "/api"
     }
   }
 };

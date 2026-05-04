@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import AadhaarModal from '../components/AadhaarModal';
 import PaymentModal from '../components/PaymentModal';
@@ -68,7 +69,16 @@ const normalizeEvent = (event, index) => {
 };
 
 const DashboardPage = () => {
-  const { walletAddress, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const { walletAddress, isAuthenticated, token } = useAuth();
+  
+  // Check wallet address on mount - but only redirect if not authenticated at all
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/auth', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
+
   const [events, setEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -77,30 +87,41 @@ const DashboardPage = () => {
   const [eventsError, setEventsError] = useState('');
   const [showAadhaarModal, setShowAadhaarModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [bookingFlow, setBookingFlow] = useState({
-    event: null,
-    identityVerified: false,
-    identity: null,
-  });
+  
+  // Booking flow states
+  const [bookingState, setBookingState] = useState(null); // 'requesting-otp', 'entering-otp', null
+  const [identityId, setIdentityId] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpMessage, setOtpMessage] = useState('');
+  const [bookingError, setBookingError] = useState('');
+  const [bookingLoading, setBookingLoading] = useState(false);
 
+  // Fetch events on mount
   useEffect(() => {
     const fetchEvents = async () => {
       setLoadingEvents(true);
       setEventsError('');
-
+      
       try {
-        const response = await fetch(`${API_BASE}/events`);
+        const response = await fetch(`${API_BASE}/events`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
         const data = await response.json();
 
         if (!data.success) {
-          throw new Error(data.message || data.error || 'Failed to load events');
+          setEventsError(data.message || 'Failed to load events');
+          return;
         }
 
-        const normalizedEvents = (data.events || []).map(normalizeEvent);
+        // Normalize and set events
+        const normalizedEvents = data.events.map(normalizeEvent);
         setEvents(normalizedEvents);
       } catch (err) {
-        setEventsError(err.message);
-        setEvents([]);
+        setEventsError(err.message || 'Failed to load events');
       } finally {
         setLoadingEvents(false);
       }
@@ -109,730 +130,346 @@ const DashboardPage = () => {
     fetchEvents();
   }, []);
 
-  // Get unique categories
-  const categories = ['All', ...new Set(events.map(event => event.category))];
-
-  // Filter events based on search and category
-  const filteredEvents = useMemo(() => {
-    let filtered = events;
-    
-    if (searchTerm) {
-      filtered = filtered.filter(event => 
-        event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        event.venue.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        event.description.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    
-    if (selectedCategory !== 'All') {
-      filtered = filtered.filter(event => event.category === selectedCategory);
-    }
-    
-    return filtered;
-  }, [searchTerm, selectedCategory, events]);
-
-  // Format date for display
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return {
-      date: date.toLocaleDateString('en-IN', { 
-        day: 'numeric', 
-        month: 'short', 
-        year: 'numeric' 
-      }),
-      time: date.toLocaleTimeString('en-IN', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-      })
-    };
-  };
-
-  const handleBookTicket = () => {
-    if (!isAuthenticated) {
-      // Redirect to auth page if not logged in
-      window.location.href = '/auth';
+  // Step 1: Request OTP for ticket booking
+  const handleRequestOtp = async () => {
+    if (!selectedEvent || !identityId) {
+      setBookingError('Please enter your Identity ID');
       return;
     }
-    
-    setBookingFlow({
-      event: selectedEvent,
-      identityVerified: false,
-      identity: null,
-    });
-    setShowAadhaarModal(true);
+
+    setBookingLoading(true);
+    setBookingError('');
+
+    try {
+      const response = await fetch(`${API_BASE}/tickets/request`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          event_id: selectedEvent.eventId,
+          identity_id: identityId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        setBookingError(data.message || 'Failed to request OTP');
+        return;
+      }
+
+      setOtpMessage(data.message);
+      setBookingState('entering-otp');
+      setOtp('');
+    } catch (err) {
+      setBookingError(err.message || 'Request failed');
+    } finally {
+      setBookingLoading(false);
+    }
   };
 
-  const handleIdentityVerified = (identityData) => {
-    setBookingFlow(prev => ({
-      ...prev,
-      identityVerified: true,
-      identity: identityData,
-    }));
-    setShowAadhaarModal(false);
-    setShowPaymentModal(true);
+  // Step 2: Confirm ticket with OTP
+  const handleConfirmTicket = async () => {
+    if (!selectedEvent || !identityId || !otp) {
+      setBookingError('OTP is required');
+      return;
+    }
+
+    setBookingLoading(true);
+    setBookingError('');
+
+    try {
+      const response = await fetch(`${API_BASE}/tickets/confirm`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          event_id: selectedEvent.eventId,
+          identity_id: identityId,
+          otp: otp,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        setBookingError(data.message || 'Failed to confirm booking');
+        return;
+      }
+
+      // Success - show success message
+      alert(`Ticket booked successfully! ${data.message}`);
+      
+      // Reset and go to my tickets
+      setBookingState(null);
+      setSelectedEvent(null);
+      setIdentityId('');
+      setOtp('');
+      
+      // Navigate to tickets page
+      navigate('/tickets');
+    } catch (err) {
+      setBookingError(err.message || 'Confirmation failed');
+    } finally {
+      setBookingLoading(false);
+    }
   };
 
-  const handlePaymentSuccess = (paymentData) => {
-    alert(`✅ Ticket Purchase Successful!\n\nOrder ID: ${paymentData.orderId}\nTicket NFT: ${paymentData.tokenId || 'Minting...'}\n\nYour ticket will appear in "My Tickets" shortly.`);
-    setShowPaymentModal(false);
+  // Reset booking flow
+  const resetBooking = () => {
+    setBookingState(null);
+    setIdentityId('');
+    setOtp('');
+    setOtpMessage('');
+    setBookingError('');
     setSelectedEvent(null);
-    setBookingFlow({
-      event: null,
-      identityVerified: false,
-      identity: null,
-    });
   };
+
+  const filteredEvents = useMemo(() => {
+    return events.filter(event => {
+      const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = selectedCategory === 'All' || event.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [events, searchTerm, selectedCategory]);
+
+  if (!isAuthenticated || !walletAddress) {
+    return null;
+  }
+
+  // Booking Modal
+  if (selectedEvent && bookingState) {
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000
+      }}>
+        <div style={{
+          background: 'white',
+          padding: '2rem',
+          borderRadius: '12px',
+          maxWidth: '500px',
+          width: '90%',
+          border: '2px solid #000'
+        }}>
+          <h2>{bookingState === 'requesting-otp' ? 'Verify Identity' : 'Enter OTP'}</h2>
+
+          {bookingState === 'requesting-otp' && (
+            <>
+              <p style={{ color: '#666', marginBottom: '1rem' }}>
+                Event: <strong>{selectedEvent.title}</strong>
+              </p>
+              <input
+                type="text"
+                placeholder="Enter your Identity ID (Aadhaar)"
+                value={identityId}
+                onChange={(e) => setIdentityId(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  marginBottom: '1rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '6px',
+                  fontSize: '1rem'
+                }}
+              />
+            </>
+          )}
+
+          {bookingState === 'entering-otp' && (
+            <>
+              <p style={{ color: '#666', marginBottom: '1rem' }}>
+                {otpMessage}
+              </p>
+              <input
+                type="text"
+                placeholder="Enter 6-digit OTP"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.slice(0, 6))}
+                maxLength="6"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  marginBottom: '1rem',
+                  border: '1px solid #ddd',
+                  borderRadius: '6px',
+                  fontSize: '1rem'
+                }}
+              />
+            </>
+          )}
+
+          {bookingError && (
+            <p style={{ color: '#dc2626', marginBottom: '1rem', fontSize: '0.9rem' }}>
+              {bookingError}
+            </p>
+          )}
+
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'space-between' }}>
+            <button
+              onClick={resetBooking}
+              style={{
+                flex: 1,
+                padding: '10px',
+                background: '#f3f4f6',
+                border: '1px solid #ddd',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600'
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={bookingState === 'requesting-otp' ? handleRequestOtp : handleConfirmTicket}
+              disabled={bookingLoading}
+              style={{
+                flex: 1,
+                padding: '10px',
+                background: bookingLoading ? '#ccc' : '#000',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: bookingLoading ? 'not-allowed' : 'pointer',
+                fontWeight: '600'
+              }}
+            >
+              {bookingLoading ? 'Processing...' : bookingState === 'requesting-otp' ? 'Request OTP' : 'Confirm Booking'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: '#fafafa' }}>
-      {/* Public Header with Login/Signup */}
-      {!isAuthenticated && (
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem' }}>
+        <h1 style={{ fontSize: '2.5rem', fontFamily: 'Syne, sans-serif', marginBottom: '2rem' }}>
+          🎫 Events
+        </h1>
+
+        {/* Search and Filter */}
         <div style={{
-          background: '#000',
-          color: '#fff',
-          padding: '1rem 2rem',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+          gap: '12px',
+          marginBottom: '2rem'
         }}>
-          <div style={{
-            fontFamily: 'Syne, sans-serif',
-            fontSize: '1.25rem',
-            fontWeight: 'bold'
-          }}>
-            BlockMyShow
-          </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button
-              onClick={() => window.location.href = '/auth'}
+          <div style={{ position: 'relative' }}>
+            <Icon.Search />
+            <input
+              type="text"
+              placeholder="Search events..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               style={{
-                padding: '8px 16px',
-                background: 'transparent',
-                color: '#fff',
-                border: '2px solid #fff',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontFamily: 'monospace',
-                fontSize: '12px',
-                fontWeight: 'bold'
-              }}
-            >
-              Login
-            </button>
-            <button
-              onClick={() => window.location.href = '/auth'}
-              style={{
-                padding: '8px 16px',
-                background: '#fff',
-                color: '#000',
-                border: '2px solid #fff',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontFamily: 'monospace',
-                fontSize: '12px',
-                fontWeight: 'bold'
-              }}
-            >
-              Sign Up
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Navbar for authenticated users */}
-      {isAuthenticated && (
-        <div style={{
-          background: '#000',
-          color: '#fff',
-          padding: '0 2rem',
-          height: '56px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          borderBottom: '3px solid #000',
-          position: 'sticky',
-          top: 0,
-          zIndex: 50
-        }}>
-          <div style={{
-            fontFamily: 'Syne, sans-serif',
-            fontSize: '1.25rem'
-          }}>
-            BlockMyShow
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-            <a href="/" style={{ color: '#4a90e2', textDecoration: 'none', fontSize: '14px' }}>Events</a>
-            <a href="/tickets" style={{ color: '#fff', textDecoration: 'none', fontSize: '14px' }}>My Tickets</a>
-            <div style={{
-              background: 'rgba(255,255,255,0.1)',
-              padding: '6px 10px',
-              borderRadius: '4px',
-              fontSize: '11px'
-            }}>
-              <div style={{ opacity: 0.7 }}>Wallet</div>
-              <div style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>
-                {walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : 'No wallet'}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Header */}
-      <div style={{ 
-        background: '#fff', 
-        padding: '2rem', 
-        borderBottom: '3px solid #000',
-        position: 'sticky',
-        top: isAuthenticated ? '56px' : '0',
-        zIndex: 10
-      }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'flex-start',
-            marginBottom: '1.5rem'
-          }}>
-            <div>
-              <h1 style={{ 
-                fontSize: '2rem', 
-                fontFamily: 'Syne, sans-serif', 
-                marginBottom: '4px' 
-              }}>
-                Discover Events
-              </h1>
-              <p style={{ color: '#666', fontSize: '14px' }}>
-                Browse and book NFT tickets for Web3 events
-              </p>
-            </div>
-            <div style={{ 
-              background: '#f0f0f0', 
-              padding: '12px 16px', 
-              borderRadius: '8px', 
-              fontSize: '12px',
-              textAlign: 'right'
-            }}>
-              <div style={{ color: '#888', marginBottom: '4px' }}>Your Wallet</div>
-              <div style={{ 
-                fontFamily: 'monospace', 
-                fontWeight: 'bold', 
-                color: '#000' 
-              }}>
-                {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
-              </div>
-            </div>
-          </div>
-
-          {/* Search and Filters */}
-          <div style={{ 
-            display: 'flex', 
-            gap: '16px', 
-            alignItems: 'center',
-            flexWrap: 'wrap'
-          }}>
-            {/* Search */}
-            <div style={{ position: 'relative', flex: '1', minWidth: '250px' }}>
-              <Icon.Search />
-              <input
-                type="text"
-                placeholder="Search events, venues, or topics..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px 10px 40px',
-                  border: '2px solid #ddd',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  fontFamily: 'monospace'
-                }}
-              />
-              <div style={{
-                position: 'absolute',
-                left: '12px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: '#666'
-              }}>
-                <Icon.Search />
-              </div>
-            </div>
-
-            {/* Category Filter */}
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              style={{
-                padding: '10px 12px',
-                border: '2px solid #ddd',
+                width: '100%',
+                padding: '10px 10px 10px 30px',
+                border: '1px solid #ddd',
                 borderRadius: '6px',
-                fontSize: '14px',
-                fontFamily: 'monospace',
-                background: '#fff',
-                cursor: 'pointer'
               }}
-            >
-              {categories.map(category => (
-                <option key={category} value={category}>
-                  {category === 'All' ? 'All Categories' : category}
-                </option>
-              ))}
-            </select>
-
-            {/* Results Count */}
-            <div style={{ 
-              fontSize: '12px', 
-              color: '#666',
-              padding: '10px 0'
-            }}>
-              {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''} found
-            </div>
+            />
           </div>
         </div>
-      </div>
 
-      {/* Events Grid */}
-      <div style={{ 
-        flex: 1, 
-        padding: '2rem', 
-        maxWidth: '1200px', 
-        margin: '0 auto', 
-        width: '100%' 
-      }}>
-        {loadingEvents ? (
+        {loadingEvents && <div>Loading events...</div>}
+
+        {eventsError && (
           <div style={{
-            textAlign: 'center',
-            padding: '4rem 2rem',
-            color: '#666'
+            background: '#fee2e2',
+            color: '#991b1b',
+            padding: '1rem',
+            borderRadius: '8px',
+            marginBottom: '2rem'
           }}>
-            <Icon.Ticket />
-            <h3 style={{ marginTop: '1rem', marginBottom: '0.5rem' }}>Loading events</h3>
-            <p>Reading public events from the smart contract</p>
+            {eventsError}
           </div>
-        ) : eventsError ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '4rem 2rem',
-            color: '#dc2626'
-          }}>
-            <Icon.Search />
-            <h3 style={{ marginTop: '1rem', marginBottom: '0.5rem' }}>Could not load events</h3>
-            <p>{eventsError}</p>
-          </div>
-        ) : filteredEvents.length === 0 ? (
-          <div style={{ 
-            textAlign: 'center', 
-            padding: '4rem 2rem',
-            color: '#666'
-          }}>
-            <Icon.Search />
-            <h3 style={{ marginTop: '1rem', marginBottom: '0.5rem' }}>No events found</h3>
-            <p>Try adjusting your search or filter criteria</p>
-          </div>
-        ) : (
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', 
-            gap: '20px' 
-          }}>
-            {filteredEvents.map(event => {
-              const { date, time } = formatDate(event.date);
-              const soldPercentage = (event.ticketsMinted / event.totalTickets) * 100;
-              const remaining = event.totalTickets - event.ticketsMinted;
-              
-              return (
-                <div 
-                  key={event.id} 
-                  onClick={() => setSelectedEvent(event)} 
-                  style={{ 
-                    border: '3px solid #000', 
-                    background: '#fff', 
-                    cursor: 'pointer', 
-                    overflow: 'hidden', 
-                    boxShadow: '4px 4px 0 #000', 
-                    transition: 'all 0.15s',
-                    borderRadius: '8px'
-                  }} 
-                  onMouseEnter={e => {
-                    e.currentTarget.style.transform = 'translate(-2px, -2px)';
-                    e.currentTarget.style.boxShadow = '6px 6px 0 #000';
-                  }} 
-                  onMouseLeave={e => {
-                    e.currentTarget.style.transform = '';
-                    e.currentTarget.style.boxShadow = '4px 4px 0 #000';
-                  }}
-                >
-                  {/* Event Image */}
-                  <div style={{ 
-                    height: '160px', 
-                    background: event.image,
-                    position: 'relative'
-                  }}>
-                    <div style={{
-                      position: 'absolute',
-                      top: '12px',
-                      right: '12px',
-                      background: 'rgba(0,0,0,0.8)',
-                      color: '#fff',
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      fontSize: '11px',
-                      fontWeight: 'bold'
-                    }}>
-                      {event.category}
-                    </div>
-                    {remaining < 50 && (
-                      <div style={{
-                        position: 'absolute',
-                        bottom: '12px',
-                        left: '12px',
-                        background: '#ef4444',
-                        color: '#fff',
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        fontSize: '11px',
-                        fontWeight: 'bold'
-                      }}>
-                        Only {remaining} left!
-                      </div>
-                    )}
+        )}
+
+        {/* Events List */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+          gap: '20px'
+        }}>
+          {filteredEvents.map((event) => (
+            <div
+              key={event.id}
+              style={{
+                border: '2px solid #000',
+                borderRadius: '12px',
+                overflow: 'hidden',
+                background: '#fff',
+                cursor: 'pointer',
+                transition: 'transform 0.2s',
+              }}
+            >
+              <div style={{
+                height: '200px',
+                background: event.image,
+                opacity: 0.8,
+              }} />
+              <div style={{ padding: '1.5rem' }}>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: '1.2rem' }}>{event.title}</h3>
+                
+                <div style={{ fontSize: '0.9rem', color: '#666', marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '6px' }}>
+                    <Icon.Calendar /> {new Date(event.date).toLocaleDateString()}
                   </div>
-                  
-                  {/* Event Details */}
-                  <div style={{ padding: '20px' }}>
-                    <h3 style={{ 
-                      fontFamily: 'Syne, sans-serif', 
-                      fontSize: '1.1rem', 
-                      marginBottom: '8px', 
-                      lineHeight: 1.2,
-                      height: '2.4rem',
-                      overflow: 'hidden'
-                    }}>
-                      {event.title}
-                    </h3>
-                    
-                    <p style={{ 
-                      fontSize: '12px', 
-                      color: '#666', 
-                      marginBottom: '12px',
-                      height: '3rem',
-                      overflow: 'hidden',
-                      lineHeight: 1.4
-                    }}>
-                      {event.description}
-                    </p>
-                    
-                    {/* Date and Venue */}
-                    <div style={{ 
-                      fontSize: '11px', 
-                      color: '#555', 
-                      marginBottom: '12px' 
-                    }}>
-                      <div style={{ 
-                        marginBottom: '6px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}>
-                        <Icon.Calendar /> {date} • {time}
-                      </div>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}>
-                        <Icon.MapPin /> {event.venue}
-                      </div>
-                    </div>
-                    
-                    {/* Organizer */}
-                    <div style={{ 
-                      fontSize: '10px', 
-                      color: '#888',
-                      marginBottom: '12px'
-                    }}>
-                      by {event.organizer}
-                    </div>
-                    
-                    {/* Availability Bar */}
-                    <div style={{ marginBottom: '12px' }}>
-                      <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between',
-                        fontSize: '11px',
-                        marginBottom: '4px'
-                      }}>
-                        <span>{remaining} available</span>
-                        <span>{Math.round(soldPercentage)}% sold</span>
-                      </div>
-                      <div style={{ 
-                        background: '#e5e7eb', 
-                        height: '4px', 
-                        borderRadius: '2px', 
-                        overflow: 'hidden' 
-                      }}>
-                        <div style={{ 
-                          background: soldPercentage > 80 ? '#ef4444' : soldPercentage > 50 ? '#f59e0b' : '#10b981', 
-                          height: '100%', 
-                          width: `${soldPercentage}%`,
-                          transition: 'width 0.3s'
-                        }} />
-                      </div>
-                    </div>
-                    
-                    {/* Price and Action */}
-                    <div style={{ 
-                      borderTop: '1px solid #eee', 
-                      paddingTop: '12px', 
-                      display: 'flex', 
-                      justifyContent: 'space-between',
-                      alignItems: 'center'
-                    }}>
-                      <div>
-                        <div style={{ 
-                          fontWeight: 'bold', 
-                          fontSize: '1.1rem' 
-                        }}>
-                          ₹{event.price.toLocaleString()}
-                        </div>
-                        <div style={{ 
-                          fontSize: '10px', 
-                          color: '#666' 
-                        }}>
-                          per ticket
-                        </div>
-                      </div>
-                      <div style={{
-                        background: remaining === 0 ? '#ccc' : '#000',
-                        color: '#fff',
-                        padding: '6px 12px',
-                        borderRadius: '4px',
-                        fontSize: '11px',
-                        fontWeight: 'bold',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}>
-                        <Icon.Ticket />
-                        {remaining === 0 ? 'Sold Out' : 'Book Now'}
-                      </div>
-                    </div>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '6px' }}>
+                    <Icon.MapPin /> {event.venue}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <Icon.Ticket /> ₹{event.price} | {event.ticketsMinted}/{event.totalTickets} sold
                   </div>
                 </div>
-              );
-            })}
+
+                <button
+                  onClick={() => {
+                    setSelectedEvent(event);
+                    setBookingState('requesting-otp');
+                    setIdentityId('');
+                    setOtp('');
+                    setBookingError('');
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    background: '#000',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: '600',
+                    marginTop: '1rem'
+                  }}
+                >
+                  Book Ticket
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {filteredEvents.length === 0 && !loadingEvents && (
+          <div style={{ textAlign: 'center', padding: '4rem', color: '#666' }}>
+            <p>No events found</p>
           </div>
         )}
       </div>
-
-      {/* Event Detail Modal */}
-      {selectedEvent && (
-        <div 
-          onClick={() => setSelectedEvent(null)} 
-          style={{ 
-            position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            bottom: 0, 
-            background: 'rgba(0,0,0,0.6)', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            zIndex: 1000,
-            padding: '20px'
-          }}
-        >
-          <div 
-            onClick={e => e.stopPropagation()} 
-            style={{ 
-              background: '#fff', 
-              border: '3px solid #000', 
-              maxWidth: '600px', 
-              width: '100%', 
-              maxHeight: '90vh', 
-              overflow: 'auto', 
-              boxShadow: '8px 8px 0 #000',
-              borderRadius: '8px'
-            }}
-          >
-            {/* Modal Header Image */}
-            <div style={{ 
-              height: '250px', 
-              background: selectedEvent.image,
-              position: 'relative'
-            }}>
-              <button
-                onClick={() => setSelectedEvent(null)}
-                style={{
-                  position: 'absolute',
-                  top: '16px',
-                  right: '16px',
-                  background: 'rgba(0,0,0,0.8)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: '32px',
-                  height: '32px',
-                  cursor: 'pointer',
-                  fontSize: '18px'
-                }}
-              >
-                ×
-              </button>
-              <div style={{
-                position: 'absolute',
-                bottom: '16px',
-                left: '16px',
-                background: 'rgba(0,0,0,0.8)',
-                color: '#fff',
-                padding: '6px 12px',
-                borderRadius: '4px',
-                fontSize: '12px',
-                fontWeight: 'bold'
-              }}>
-                {selectedEvent.category}
-              </div>
-            </div>
-            
-            {/* Modal Content */}
-            <div style={{ padding: '24px' }}>
-              <h2 style={{ 
-                fontFamily: 'Syne, sans-serif', 
-                fontSize: '1.5rem', 
-                marginBottom: '8px' 
-              }}>
-                {selectedEvent.title}
-              </h2>
-              
-              <p style={{ 
-                fontSize: '12px', 
-                color: '#666', 
-                marginBottom: '4px' 
-              }}>
-                Organized by {selectedEvent.organizer}
-              </p>
-              
-              <p style={{ 
-                fontSize: '14px', 
-                color: '#333', 
-                marginBottom: '20px',
-                lineHeight: 1.5
-              }}>
-                {selectedEvent.description}
-              </p>
-              
-              {/* Event Details */}
-              <div style={{ 
-                background: '#f8f9fa',
-                padding: '16px',
-                borderRadius: '6px',
-                marginBottom: '20px'
-              }}>
-                <div style={{ 
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '12px',
-                  fontSize: '13px'
-                }}>
-                  <div>
-                    <div style={{ color: '#666', marginBottom: '4px' }}>Date & Time</div>
-                    <div style={{ fontWeight: 'bold' }}>
-                      {formatDate(selectedEvent.date).date} • {formatDate(selectedEvent.date).time}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ color: '#666', marginBottom: '4px' }}>Venue</div>
-                    <div style={{ fontWeight: 'bold' }}>{selectedEvent.venue}</div>
-                  </div>
-                  <div>
-                    <div style={{ color: '#666', marginBottom: '4px' }}>Price</div>
-                    <div style={{ fontWeight: 'bold', fontSize: '16px' }}>₹{selectedEvent.price.toLocaleString()}</div>
-                  </div>
-                  <div>
-                    <div style={{ color: '#666', marginBottom: '4px' }}>Availability</div>
-                    <div style={{ fontWeight: 'bold' }}>
-                      {selectedEvent.totalTickets - selectedEvent.ticketsMinted} / {selectedEvent.totalTickets}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Availability Progress */}
-              <div style={{ marginBottom: '20px' }}>
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between',
-                  fontSize: '12px',
-                  marginBottom: '6px'
-                }}>
-                  <span>Tickets Available</span>
-                  <span>{Math.round((selectedEvent.ticketsMinted / selectedEvent.totalTickets) * 100)}% sold</span>
-                </div>
-                <div style={{ 
-                  background: '#e5e7eb', 
-                  height: '8px', 
-                  borderRadius: '4px', 
-                  overflow: 'hidden' 
-                }}>
-                  <div style={{ 
-                    background: '#4a90e2', 
-                    height: '100%', 
-                    width: `${(selectedEvent.ticketsMinted / selectedEvent.totalTickets) * 100}%`,
-                    transition: 'width 0.3s'
-                  }} />
-                </div>
-              </div>
-              
-              {/* Book Button */}
-              <button 
-                onClick={handleBookTicket} 
-                disabled={selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0}
-                style={{ 
-                  width: '100%', 
-                  padding: '14px', 
-                  background: selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 ? '#ccc' : '#000', 
-                  color: '#fff', 
-                  border: '2px solid #000', 
-                  cursor: selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 ? 'not-allowed' : 'pointer', 
-                  fontFamily: 'monospace', 
-                  fontSize: '14px', 
-                  fontWeight: 'bold',
-                  borderRadius: '6px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px'
-                }}
-              >
-                <Icon.Ticket />
-                {selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 
-                  ? 'Sold Out' 
-                  : `Book Ticket • ₹${selectedEvent.price.toLocaleString()}`
-                }
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modals */}
-      <AadhaarModal
-        isOpen={showAadhaarModal}
-        onClose={() => setShowAadhaarModal(false)}
-        onVerified={handleIdentityVerified}
-        eventId={bookingFlow.event?.id}
-      />
-
-      <PaymentModal
-        isOpen={showPaymentModal}
-        onClose={() => setShowPaymentModal(false)}
-        event={bookingFlow.event}
-        userWallet={walletAddress}
-        identity={bookingFlow.identity}
-        onPaymentSuccess={handlePaymentSuccess}
-      />
     </div>
   );
 };

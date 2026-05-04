@@ -21,7 +21,7 @@ const addIdentityController = async (req, res) => {
     }
 
     // Add identity
-    addIdentity(identity_id, phone_number, name, profile_photo_url || '')
+    await addIdentity(identity_id, phone_number, name, profile_photo_url || '')
 
     return res.status(201).json({
       success: true,

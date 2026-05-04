@@ -9,7 +9,7 @@ const ticketsRequest = async (req, res) => {
     const { event_id, identity_id } = req.body
 
     // Validate request body
-    if (!event_id || !identity_id) {
+    if (event_id === undefined || event_id === null || !identity_id) {
       return res.status(400).json({
         success: false,
         message: 'event_id and identity_id are required'
@@ -17,7 +17,7 @@ const ticketsRequest = async (req, res) => {
     }
 
     // Hash identity and lookup
-    const identity = getIdentityByRawId(identity_id)
+    const identity = await getIdentityByRawId(identity_id)
     if (!identity) {
       return res.status(404).json({
         success: false,
@@ -28,11 +28,13 @@ const ticketsRequest = async (req, res) => {
     // Check event exists and not sold out
     let event
     try {
-      event = await getEvent(event_id)
+      event = await getEvent(Number(event_id))
     } catch (err) {
+      console.error('[ticketsRequest] getEvent error:', err.message)
       return res.status(404).json({
         success: false,
-        message: 'Event not found'
+        message: 'Event not found',
+        error: err.message
       })
     }
 
@@ -76,7 +78,7 @@ const ticketsConfirm = async (req, res) => {
     const wallet_address = req.user?.wallet_address
 
     // Validate request body
-    if (!event_id || !identity_id || !otp) {
+    if (event_id === undefined || event_id === null || !identity_id || !otp) {
       return res.status(400).json({
         success: false,
         message: 'event_id, identity_id, and otp are required'
@@ -100,7 +102,7 @@ const ticketsConfirm = async (req, res) => {
     }
 
     // Verify identity exists
-    const identity = getIdentityByRawId(identity_id)
+    const identity = await getIdentityByRawId(identity_id)
     if (!identity) {
       return res.status(404).json({
         success: false,
@@ -111,11 +113,13 @@ const ticketsConfirm = async (req, res) => {
     // Verify event exists
     let event
     try {
-      event = await getEvent(event_id)
+      event = await getEvent(Number(event_id))
     } catch (err) {
+      console.error('[ticketsConfirm] getEvent error:', err.message)
       return res.status(404).json({
         success: false,
-        message: 'Event not found'
+        message: 'Event not found',
+        error: err.message
       })
     }
 
@@ -155,6 +159,9 @@ const myTickets = async (req, res) => {
   try {
     const wallet_address = req.user?.wallet_address
 
+    console.log('[myTickets] Request user:', req.user)
+    console.log('[myTickets] Wallet address:', wallet_address)
+
     if (!wallet_address) {
       return res.status(401).json({
         success: false,
@@ -167,6 +174,7 @@ const myTickets = async (req, res) => {
     try {
       tokenIds = await getUserTickets(wallet_address)
     } catch (err) {
+      console.error('[myTickets] Error fetching tickets:', err.message)
       return res.status(502).json({
         success: false,
         message: 'Failed to fetch tickets',

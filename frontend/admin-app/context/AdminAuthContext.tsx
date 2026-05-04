@@ -9,7 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 interface Admin {
   id: string;
   username: string;
-  role: 'admin' | 'gate_operator' | 'event_creator';
+  role: 'super_admin' | 'admin' | 'gate_operator' | 'event_creator';
 }
 
 interface AdminAuthContextType {

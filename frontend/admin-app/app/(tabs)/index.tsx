@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useAdminAuth } from '@/context/AdminAuthContext';
 
-const API_BASE = 'http://localhost:5000/api/v1';
+const API_BASE = 'http://192.168.29.141:5000/api';
 
 interface DashboardStats {
   totalEvents: number;
