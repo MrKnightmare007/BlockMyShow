@@ -28,7 +28,7 @@ router.patch(
 )
 
 router.put(
-  '/:id',
+  '/:id/metadata',
   authMiddleware,
   roleMiddleware(['super_admin']),
   updateEvent

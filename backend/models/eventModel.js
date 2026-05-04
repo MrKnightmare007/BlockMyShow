@@ -6,9 +6,9 @@ const EVENT_INFO_COMPONENTS = [
   { name: 'venue', type: 'string' },
   { name: 'date', type: 'uint256' },
   { name: 'price', type: 'uint256' },
+  { name: 'photoUrl', type: 'string' },
   { name: 'totalTickets', type: 'uint256' },
-  { name: 'ticketsMinted', type: 'uint256' },
-  { name: 'metadataURI', type: 'string' }
+  { name: 'ticketsMinted', type: 'uint256' }
 ]
 
 const TICKET_ABI = [
@@ -21,8 +21,8 @@ const TICKET_ABI = [
       { name: 'venue', type: 'string' },
       { name: 'date', type: 'uint256' },
       { name: 'price', type: 'uint256' },
-      { name: 'totalTickets', type: 'uint256' },
-      { name: 'metadataURI', type: 'string' }
+      { name: 'photoUrl', type: 'string' },
+      { name: 'totalTickets', type: 'uint256' }
     ],
     outputs: [
       { name: '', type: 'uint256' }
@@ -34,7 +34,7 @@ const TICKET_ABI = [
     stateMutability: 'nonpayable',
     inputs: [
       { name: 'eventId', type: 'uint256' },
-      { name: 'newURI', type: 'string' }
+      { name: 'newPhotoUrl', type: 'string' }
     ],
     outputs: []
   },
@@ -104,9 +104,9 @@ const normalizeEvent = (eventInfo) => {
     venue: eventInfo.venue ?? eventInfo[2],
     date: Number(eventInfo.date ?? eventInfo[3]),
     price: Number(eventInfo.price ?? eventInfo[4]),
-    totalTickets: Number(eventInfo.totalTickets ?? eventInfo[5]),
-    ticketsMinted: Number(eventInfo.ticketsMinted ?? eventInfo[6]),
-    metadataURI: eventInfo.metadataURI ?? eventInfo[7]
+    photoUrl: eventInfo.photoUrl ?? eventInfo[5],
+    totalTickets: Number(eventInfo.totalTickets ?? eventInfo[6]),
+    ticketsMinted: Number(eventInfo.ticketsMinted ?? eventInfo[7])
   }
 }
 
@@ -117,8 +117,8 @@ const createEventOnChain = async (data) => {
     data.venue,
     data.date,
     data.price,
-    data.totalTickets,
-    data.metadataURI
+    data.photoUrl || '',
+    data.totalTickets
   )
 
   const tx = await contract.createEvent(
@@ -126,25 +126,29 @@ const createEventOnChain = async (data) => {
     data.venue,
     data.date,
     data.price,
-    data.totalTickets,
-    data.metadataURI
+    data.photoUrl || '',
+    data.totalTickets
   )
   const receipt = await tx.wait()
 
+  // Fetch the full event from contract to return complete details including photoUrl
+  const eventInfo = await contract.getEvent(Number(eventId))
+  const normalizedEvent = normalizeEvent(eventInfo)
+
   return {
-    eventId: Number(eventId),
+    ...normalizedEvent,
     transactionHash: receipt.hash
   }
 }
 
-const updateEventMetadataOnChain = async (eventId, metadataURI) => {
+const updateEventMetadataOnChain = async (eventId, photoUrl) => {
   const contract = getWriteContract()
-  const tx = await contract.updateEventMetadata(eventId, metadataURI)
+  const tx = await contract.updateEventMetadata(eventId, photoUrl)
   const receipt = await tx.wait()
 
   return {
     eventId: Number(eventId),
-    metadataURI,
+    photoUrl,
     transactionHash: receipt.hash
   }
 }

@@ -225,12 +225,22 @@ const TICKET_ABI = [
   },
   {
     inputs: [
-      { internalType: 'uint256', name: 'tokenId', type: 'uint256' },
       { internalType: 'bytes32', name: 'commitment', type: 'bytes32' }
     ],
     name: 'markUsed',
     outputs: [],
     stateMutability: 'nonpayable',
+    type: 'function'
+  },
+  {
+    inputs: [
+      { internalType: 'uint256', name: 'tokenId', type: 'uint256' }
+    ],
+    name: 'ownerOf',
+    outputs: [
+      { internalType: 'address', name: '', type: 'address' }
+    ],
+    stateMutability: 'view',
     type: 'function'
   },
   {
@@ -356,10 +366,22 @@ const getTicketInfo = async (tokenId) => {
     return {
       eventId: Number(ticket.eventId),
       commitment: ticket.commitment,
-      used: ticket.used
+      used: ticket.used,
+      isListed: ticket.isListed,
+      listPrice: Number(ticket.listPrice)
     }
   } catch (err) {
     throw new Error(`Failed to fetch ticket info: ${err.message}`)
+  }
+}
+
+const getTicketOwner = async (tokenId) => {
+  const contract = getReadContract()
+  try {
+    const owner = await contract.ownerOf(tokenId)
+    return owner
+  } catch (err) {
+    throw new Error(`Failed to fetch ticket owner: ${err.message}`)
   }
 }
 
@@ -413,72 +435,15 @@ const markUsed = async (tokenId, commitment) => {
 const getUserTickets = async (walletAddress) => {
   const contract = getReadContract()
   try {
-    const provider = getProvider()
-    const currentBlock = await provider.getBlockNumber()
+    console.log(`[getUserTickets] Fetching tickets for wallet: ${walletAddress}`)
     
-    console.log(`[getUserTickets] Querying for wallet: ${walletAddress}`)
-    console.log(`[getUserTickets] Current block: ${currentBlock}`)
+    // Call the smart contract's getUserTickets function directly
+    // This is much faster than searching through blockchain blocks
+    const tokenIds = await contract.getUserTickets(walletAddress)
     
-    // Query recent blocks only - Alchemy free tier is aggressive
-    // Search last 5000 blocks (~18 hours) with delays to avoid rate limiting
-    const fromBlock = Math.max(currentBlock - 5000, 0)
-    const toBlock = currentBlock
+    console.log(`[getUserTickets] Retrieved ${tokenIds.length} tickets`)
     
-    console.log(`[getUserTickets] Searching blocks ${fromBlock} to ${toBlock}`)
-    
-    const allTokenIds = new Set()
-    let chunksProcessed = 0
-    let eventsFound = 0
-    const chunkSize = 10
-    
-    // Helper to add delay between requests
-    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
-    
-    for (let start = fromBlock; start <= toBlock; start += chunkSize) {
-      const end = Math.min(start + chunkSize - 1, toBlock)
-      try {
-        const filter = contract.filters.Transfer(null, walletAddress)
-        const events = await contract.queryFilter(filter, start, end)
-        
-        chunksProcessed++
-        eventsFound += events.length
-        
-        for (const event of events) {
-          allTokenIds.add(Number(event.args[2]))
-        }
-        
-        // Add 100ms delay between requests to avoid rate limiting
-        // This makes queries slower but prevents 429 errors
-        if (start + chunkSize <= toBlock) {
-          await delay(100)
-        }
-      } catch (err) {
-        // If rate limited, add longer delay and retry once
-        if (err.code === 429 || err.message.includes('429')) {
-          console.warn(`[getUserTickets] Rate limited on block range ${start}-${end}, waiting 2s before retry...`)
-          await delay(2000)
-          try {
-            const filter = contract.filters.Transfer(null, walletAddress)
-            const events = await contract.queryFilter(filter, start, end)
-            
-            chunksProcessed++
-            eventsFound += events.length
-            
-            for (const event of events) {
-              allTokenIds.add(Number(event.args[2]))
-            }
-          } catch (retryErr) {
-            console.warn(`[getUserTickets] Retry failed for ${start}-${end}:`, retryErr.message)
-          }
-        } else {
-          console.warn(`[getUserTickets] Failed to query block range ${start}-${end}:`, err.message)
-        }
-      }
-    }
-    
-    console.log(`[getUserTickets] Completed: ${chunksProcessed} chunks, ${eventsFound} events, ${allTokenIds.size} unique tokens`)
-    
-    return Array.from(allTokenIds)
+    return tokenIds.map(id => Number(id))
   } catch (err) {
     throw new Error(`Failed to fetch user tickets: ${err.message}`)
   }
@@ -566,6 +531,7 @@ const buyResale = async (tokenId, buyerAddress, newCommitment) => {
 module.exports = {
   getEvent,
   getTicketInfo,
+  getTicketOwner,
   getUserTickets,
   mintTicket,
   markUsed,

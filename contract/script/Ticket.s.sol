@@ -2,10 +2,10 @@
 pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
-import {TicketNFT} from "../src/Ticket.sol";
+import {ProofPass} from "../src/Ticket.sol";
 
 contract TicketScript is Script {
-    TicketNFT public ticket;
+    ProofPass public ticket;
 
     function setUp() public {}
 
@@ -16,11 +16,11 @@ contract TicketScript is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        ticket = new TicketNFT(deployer);
+        ticket = new ProofPass();
 
         vm.stopBroadcast();
 
-        console.log("TicketNFT deployed at:", address(ticket));
+        console.log("ProofPass deployed at:", address(ticket));
         console.log("Initial owner:", deployer);
     }
 

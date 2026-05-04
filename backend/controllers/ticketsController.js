@@ -226,14 +226,23 @@ const myTickets = async (req, res) => {
 
 const listForResale = async (req, res) => {
   try {
-    const { token_id, price } = req.body
+    // Support both camelCase and snake_case
+    const token_id = req.body.token_id || req.body.tokenId
+    const price = req.body.price
     const wallet_address = req.user?.wallet_address
 
     // Validate
     if (!token_id || !price) {
       return res.status(400).json({
         success: false,
-        message: 'token_id and price are required'
+        message: 'tokenId (or token_id) and price are required'
+      })
+    }
+
+    if (!wallet_address) {
+      return res.status(401).json({
+        success: false,
+        message: 'User wallet address not found in token'
       })
     }
 
@@ -244,7 +253,7 @@ const listForResale = async (req, res) => {
       })
     }
 
-    // Verify token exists and belongs to user
+    // Verify token exists
     let ticket
     try {
       ticket = await getTicketInfo(token_id)
@@ -252,6 +261,26 @@ const listForResale = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Ticket not found'
+      })
+    }
+
+    // Verify user owns the ticket
+    const { getTicketOwner } = require('../service/blockchainService')
+    let owner
+    try {
+      owner = await getTicketOwner(token_id)
+    } catch (err) {
+      return res.status(502).json({
+        success: false,
+        message: 'Failed to verify ticket ownership',
+        error: err.message
+      })
+    }
+
+    if (owner.toLowerCase() !== wallet_address.toLowerCase()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not own this ticket'
       })
     }
 
@@ -293,13 +322,23 @@ const listForResale = async (req, res) => {
 
 const updateListPrice = async (req, res) => {
   try {
-    const { token_id, new_price } = req.body
+    // Support both camelCase and snake_case
+    const token_id = req.body.token_id || req.body.tokenId
+    const new_price = req.body.new_price || req.body.newPrice
+    const wallet_address = req.user?.wallet_address
 
     // Validate
     if (!token_id || !new_price) {
       return res.status(400).json({
         success: false,
-        message: 'token_id and new_price are required'
+        message: 'tokenId (or token_id) and newPrice (or new_price) are required'
+      })
+    }
+
+    if (!wallet_address) {
+      return res.status(401).json({
+        success: false,
+        message: 'User wallet address not found in token'
       })
     }
 
@@ -318,6 +357,26 @@ const updateListPrice = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Ticket not found'
+      })
+    }
+
+    // Verify user owns the ticket
+    const { getTicketOwner } = require('../service/blockchainService')
+    let owner
+    try {
+      owner = await getTicketOwner(token_id)
+    } catch (err) {
+      return res.status(502).json({
+        success: false,
+        message: 'Failed to verify ticket ownership',
+        error: err.message
+      })
+    }
+
+    if (owner.toLowerCase() !== wallet_address.toLowerCase()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not own this ticket'
       })
     }
 
@@ -362,13 +421,22 @@ const updateListPrice = async (req, res) => {
 
 const cancelListing = async (req, res) => {
   try {
-    const { token_id } = req.body
+    // Support both camelCase and snake_case
+    const token_id = req.body.token_id || req.body.tokenId
+    const wallet_address = req.user?.wallet_address
 
     // Validate
     if (!token_id) {
       return res.status(400).json({
         success: false,
-        message: 'token_id is required'
+        message: 'tokenId (or token_id) is required'
+      })
+    }
+
+    if (!wallet_address) {
+      return res.status(401).json({
+        success: false,
+        message: 'User wallet address not found in token'
       })
     }
 
@@ -387,6 +455,26 @@ const cancelListing = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Ticket is not listed for resale'
+      })
+    }
+
+    // Verify user owns the ticket
+    const { getTicketOwner } = require('../service/blockchainService')
+    let owner
+    try {
+      owner = await getTicketOwner(token_id)
+    } catch (err) {
+      return res.status(502).json({
+        success: false,
+        message: 'Failed to verify ticket ownership',
+        error: err.message
+      })
+    }
+
+    if (owner.toLowerCase() !== wallet_address.toLowerCase()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not own this ticket'
       })
     }
 
@@ -483,14 +571,16 @@ const getMarketplace = async (req, res) => {
 
 const buyResaleRequest = async (req, res) => {
   try {
-    const { token_id, buyer_identity } = req.body
+    // Support both camelCase and snake_case
+    const token_id = req.body.token_id || req.body.tokenId
+    const buyer_identity = req.body.buyer_identity || req.body.buyerIdentity
     const wallet_address = req.user?.wallet_address
 
     // Validate
     if (!token_id || !buyer_identity) {
       return res.status(400).json({
         success: false,
-        message: 'token_id and buyer_identity are required'
+        message: 'tokenId (or token_id) and buyerIdentity (or buyer_identity) are required'
       })
     }
 
@@ -573,14 +663,17 @@ const buyResaleRequest = async (req, res) => {
 
 const buyResaleConfirm = async (req, res) => {
   try {
-    const { token_id, buyer_identity, otp } = req.body
+    // Support both camelCase and snake_case
+    const token_id = req.body.token_id || req.body.tokenId
+    const buyer_identity = req.body.buyer_identity || req.body.buyerIdentity
+    const otp = req.body.otp
     const wallet_address = req.user?.wallet_address
 
     // Validate
     if (!token_id || !buyer_identity || !otp) {
       return res.status(400).json({
         success: false,
-        message: 'token_id, buyer_identity, and otp are required'
+        message: 'tokenId (or token_id), buyerIdentity (or buyer_identity), and otp are required'
       })
     }
 

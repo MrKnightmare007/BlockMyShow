@@ -12,7 +12,7 @@ const pickEventPayload = (body) => {
     date,
     price,
     totalTickets,
-    metadataURI
+    photoUrl
   } = body
 
   const payload = {}
@@ -22,13 +22,13 @@ const pickEventPayload = (body) => {
   if (date !== undefined) payload.date = date
   if (price !== undefined) payload.price = price
   if (totalTickets !== undefined) payload.totalTickets = totalTickets
-  if (metadataURI !== undefined) payload.metadataURI = metadataURI
+  if (photoUrl !== undefined) payload.photoUrl = photoUrl
 
   return payload
 }
 
 const validateCreateEvent = (payload) => {
-  const requiredFields = ['title', 'venue', 'date', 'price', 'totalTickets', 'metadataURI']
+  const requiredFields = ['title', 'venue', 'date', 'price', 'totalTickets']
   return requiredFields.filter((field) => payload[field] === undefined || payload[field] === '')
 }
 
@@ -105,7 +105,7 @@ const createEvent = async (req, res) => {
 
 const updateEvent = async (req, res) => {
   try {
-    const allowedFields = ['metadataURI', 'newURI']
+    const allowedFields = ['photoUrl']
     const unsupportedFields = Object.keys(req.body).filter((field) => {
       return !allowedFields.includes(field)
     })
@@ -113,21 +113,21 @@ const updateEvent = async (req, res) => {
     if (unsupportedFields.length) {
       return res.status(400).json({
         success: false,
-        message: 'Only metadataURI can be updated by the current smart contract',
+        message: 'Only photoUrl can be updated',
         unsupportedFields
       })
     }
 
-    const metadataURI = req.body.metadataURI || req.body.newURI
+    const { photoUrl } = req.body
 
-    if (!metadataURI) {
+    if (!photoUrl) {
       return res.status(400).json({
         success: false,
-        message: 'metadataURI is required'
+        message: 'photoUrl is required'
       })
     }
 
-    const event = await updateEventMetadataOnChain(req.params.id, metadataURI)
+    const event = await updateEventMetadataOnChain(req.params.id, photoUrl)
 
     res.json({
       success: true,
