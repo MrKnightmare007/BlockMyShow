@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "admin-app",
-    "slug": "admin-app",
+    "name": "BlockMyShow-Admin",
+    "slug": "blockmyshow-admin",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
