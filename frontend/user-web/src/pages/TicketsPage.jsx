@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import QRCode from 'qrcode';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -55,6 +56,63 @@ const GRADIENT_COLORS = [
   'linear-gradient(135deg, #8b5cf6 0%, #0a0a0a 100%)',
 ];
 
+// ── Ticket View Modal (with QR) ───────────────────────────────────────────
+const TicketViewModal = ({ isOpen, onClose, ticket }) => {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen || !ticket || !canvasRef.current) return;
+    const qrData = `BLOCKMYSHOW:TOKEN:${ticket.token_id}:EVENT:${ticket.event_id}`;
+    QRCode.toCanvas(canvasRef.current, qrData, {
+      width: 200, margin: 2,
+      color: { dark: '#000000', light: '#ffffff' },
+    }).catch(console.error);
+  }, [isOpen, ticket]);
+
+  if (!isOpen || !ticket) return null;
+  const dateStr = formatDate(ticket.event?.date);
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', border: '3px solid var(--border)', boxShadow: '8px 8px 0 var(--border)', maxWidth: '420px', width: '100%' }}>
+        {/* Header */}
+        <div style={{ padding: '16px 20px', borderBottom: '3px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--primary)' }}>
+          <h3 style={{ margin: 0, fontFamily: 'Syne, sans-serif', fontSize: '15px', textTransform: 'uppercase', color: '#000' }}>🎫 NFT Ticket Pass</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#000', padding: '4px', fontSize: '18px', lineHeight: 1 }}>✕</button>
+        </div>
+        {/* Body */}
+        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+          {/* QR Code */}
+          <div style={{ background: '#fff', padding: '12px', border: '3px solid var(--border)', boxShadow: '4px 4px 0 var(--border)' }}>
+            <canvas ref={canvasRef} />
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--muted)', fontFamily: 'Space Mono, monospace', textAlign: 'center' }}>
+            Scan at gate for entry verification
+          </div>
+          {/* Details */}
+          <div style={{ width: '100%', border: '2px solid var(--border)', background: 'var(--bg)', fontFamily: 'Space Mono, monospace', fontSize: '13px' }}>
+            {[
+              ['Event',   ticket.event?.title || 'Unknown'],
+              ['Venue',   ticket.event?.venue || 'TBA'],
+              ['Date',    dateStr],
+              ['Token ID', `#${ticket.token_id}`],
+              ['Event ID', `#${ticket.event_id}`],
+              ['Price',   `₹${Number(ticket.salePrice || ticket.event?.price || 0).toLocaleString('en-IN')}`],
+              ['Status',  ticket.used ? '✔ USED' : ticket.isListed ? '🏷 LISTED FOR RESALE' : '✅ ACTIVE'],
+            ].map(([k, v]) => (
+              <div key={k} style={{ display: 'flex', borderBottom: '1px solid var(--border)', padding: '8px 14px', gap: '12px' }}>
+                <span style={{ color: 'var(--muted)', minWidth: '80px', fontSize: '11px', textTransform: 'uppercase' }}>{k}</span>
+                <span style={{ color: 'var(--text)', fontWeight: 'bold', wordBreak: 'break-all' }}>{v}</span>
+              </div>
+            ))}
+          </div>
+          <button onClick={onClose} className="brutal-btn" style={{ width: '100%', padding: '12px', fontSize: '13px' }}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── Inline Resale / Update Price Modal ────────────────────────────────────
 const ResaleActionModal = ({ isOpen, onClose, ticket, token, onSuccess }) => {
   const isAlreadyListed = ticket?.isListed;
@@ -73,13 +131,18 @@ const ResaleActionModal = ({ isOpen, onClose, ticket, token, onSuccess }) => {
     'Authorization': `Bearer ${token}`,
   };
 
+  const salePrice = Number(ticket?.salePrice || ticket?.event?.price || 0);
+  const priceNum  = Number(price);
+  const priceOverCap = priceNum > 0 && salePrice > 0 && priceNum > salePrice;
+
   const handleList = async () => {
-    if (!price || Number(price) <= 0) { toast.error('Enter a valid price'); return; }
+    if (!price || priceNum <= 0) { toast.error('Enter a valid price'); return; }
+    if (priceOverCap) { toast.error(`Anti-scalping: price cannot exceed ₹${salePrice.toLocaleString('en-IN')}`); return; }
     setLoading(true);
     try {
       const res  = await fetch(`${API_BASE}/tickets/list`, {
         method: 'POST', headers: authHeaders,
-        body: JSON.stringify({ tokenId: String(ticket.token_id), price: Number(price) }),
+        body: JSON.stringify({ tokenId: String(ticket.token_id), price: priceNum }),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.message || 'Failed to list');
@@ -91,7 +154,8 @@ const ResaleActionModal = ({ isOpen, onClose, ticket, token, onSuccess }) => {
   };
 
   const handleUpdatePrice = async () => {
-    if (!price || Number(price) <= 0) { toast.error('Enter a valid price'); return; }
+    if (!price || priceNum <= 0) { toast.error('Enter a valid price'); return; }
+    if (priceOverCap) { toast.error(`Anti-scalping: price cannot exceed ₹${salePrice.toLocaleString('en-IN')}`); return; }
     setLoading(true);
     try {
       const res  = await fetch(`${API_BASE}/tickets/update-list-price`, {
@@ -161,17 +225,26 @@ const ResaleActionModal = ({ isOpen, onClose, ticket, token, onSuccess }) => {
             {isAlreadyListed ? 'New List Price (₹)' : 'Resale Price (₹)'}
           </label>
           <input
-            type="number" min="1"
+            type="number" min="1" max={salePrice || undefined}
             value={price}
             onChange={e => setPrice(e.target.value)}
-            placeholder={`e.g. ${ticket.salePrice || 500}`}
+            placeholder={`Max ₹${salePrice || '—'}`}
             style={{
-              width: '100%', padding: '12px', marginBottom: '16px',
-              border: '2px solid var(--border)', background: 'var(--input-bg)',
-              color: 'var(--text)', fontFamily: 'Space Mono, monospace',
+              width: '100%', padding: '12px', marginBottom: '8px',
+              border: `2px solid ${priceOverCap ? '#ef4444' : 'var(--border)'}`,
+              background: 'var(--input-bg)',
+              color: priceOverCap ? '#ef4444' : 'var(--text)',
+              fontFamily: 'Space Mono, monospace',
               fontSize: '18px', fontWeight: 'bold', boxSizing: 'border-box',
             }}
           />
+          {salePrice > 0 && (
+            <div style={{ fontSize: '12px', marginBottom: '12px', fontFamily: 'Space Mono, monospace', color: priceOverCap ? '#ef4444' : 'var(--muted)' }}>
+              {priceOverCap
+                ? `⛔ Exceeds original price (₹${salePrice.toLocaleString('en-IN')})`
+                : `🛡 Anti-scalping cap: max ₹${salePrice.toLocaleString('en-IN')}`}
+            </div>
+          )}
 
           <div style={{ fontSize: '12px', color: '#f59e0b', background: 'rgba(245,158,11,0.08)', border: '1px solid #f59e0b', padding: '10px 12px', marginBottom: '20px', fontFamily: 'Space Mono, monospace' }}>
             ⚠ Anti-scalping: you'll receive payment only when another user buys.
@@ -209,6 +282,7 @@ const ResaleActionModal = ({ isOpen, onClose, ticket, token, onSuccess }) => {
 // ── Ticket Card ────────────────────────────────────────────────────────────
 const TicketCard = ({ ticket, index, tab, token, onRefresh }) => {
   const [resaleOpen, setResaleOpen] = useState(false);
+  const [viewOpen, setViewOpen]     = useState(false);
   const gradient = GRADIENT_COLORS[index % GRADIENT_COLORS.length];
   const dateStr  = formatDate(ticket.event?.date);
   const status   = ticket.used ? 'USED' : ticket.isListed ? 'LISTED' : 'ACTIVE';
@@ -285,10 +359,16 @@ const TicketCard = ({ ticket, index, tab, token, onRefresh }) => {
 
             {/* Action buttons */}
             {tab === 'active' && !ticket.used && !ticket.isListed && (
-              <button className="brutal-btn" onClick={() => setResaleOpen(true)}
-                style={{ padding: '9px 16px', fontSize: '12px', background: 'var(--surface)', color: '#f59e0b', borderColor: '#f59e0b' }}>
-                🏷️ Resell
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="brutal-btn" onClick={() => setViewOpen(true)}
+                  style={{ padding: '9px 14px', fontSize: '12px', background: 'var(--surface)', color: 'var(--text)' }}>
+                  🎫 View
+                </button>
+                <button className="brutal-btn" onClick={() => setResaleOpen(true)}
+                  style={{ padding: '9px 14px', fontSize: '12px', background: 'var(--surface)', color: '#f59e0b', borderColor: '#f59e0b' }}>
+                  🏷️ Resell
+                </button>
+              </div>
             )}
             {tab === 'resell' && (
               <button className="brutal-btn" onClick={() => setResaleOpen(true)}
@@ -311,6 +391,11 @@ const TicketCard = ({ ticket, index, tab, token, onRefresh }) => {
         ticket={ticket}
         token={token}
         onSuccess={onRefresh}
+      />
+      <TicketViewModal
+        isOpen={viewOpen}
+        onClose={() => setViewOpen(false)}
+        ticket={ticket}
       />
     </>
   );
