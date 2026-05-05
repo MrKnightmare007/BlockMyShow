@@ -8,6 +8,7 @@ const eventRoutes = require('./routes/eventRoutes')
 const identityRoutes = require('./routes/identityRoutes')
 const ticketsRoutes = require('./routes/ticketsRoutes')
 const gateRoutes = require('./routes/gateRoutes')
+const paymentRoutes = require('./routes/paymentRoutes')
 
 const app = express()
 
@@ -24,6 +25,7 @@ app.use('/api/events', eventRoutes)
 app.use('/api/identity', identityRoutes)
 app.use('/api/tickets', ticketsRoutes)
 app.use('/api/gate', gateRoutes)
+app.use('/api/payment', paymentRoutes)
 
 app.get('/', (req, res) => {
   res.send('API Running')
