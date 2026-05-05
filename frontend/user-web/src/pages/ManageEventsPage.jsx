@@ -1,401 +1,232 @@
-/* eslint-disable react-hooks/set-state-in-effect */
-import { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
-const initialCreateForm = {
-  title: '',
-  venue: '',
-  date: '',
-  price: '',
-  totalTickets: '',
-  metadataURI: ''
-};
-
-const initialUpdateForm = {
-  eventId: '',
-  metadataURI: ''
-};
-
-const normalizeEvent = (event) => {
-  const eventDate = Number(event.date);
-
-  return {
-    ...event,
-    id: String(event.eventId),
-    dateLabel: Number.isFinite(eventDate)
-      ? new Date(eventDate * 1000).toLocaleString('en-IN')
-      : event.date
-  };
-};
-
-const ManageEventsPage = () => {
-  const { token } = useAuth();
+function ManageEventsPage() {
+  const navigate = useNavigate();
+  const { isAuthenticated, isAdmin, token } = useAuth();
   const [events, setEvents] = useState([]);
-  const [createForm, setCreateForm] = useState(initialCreateForm);
-  const [updateForm, setUpdateForm] = useState(initialUpdateForm);
-  const [loading, setLoading] = useState(false);
-  const [eventsLoading, setEventsLoading] = useState(true);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
+  const [createSuccess, setCreateSuccess] = useState('');
+  const [activeTab, setActiveTab] = useState('events');
 
-  const fetchEvents = async () => {
-    setEventsLoading(true);
-    setError('');
-
-    try {
-      const response = await fetch(`${API_BASE}/events`);
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.message || data.error || 'Failed to load events');
-      }
-
-      setEvents((data.events || []).map(normalizeEvent));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setEventsLoading(false);
-    }
-  };
+  const emptyForm = { title: '', venue: '', date: '', price: '', photoUrl: '', totalTickets: '' };
+  const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
+    if (!isAuthenticated || !isAdmin) { navigate('/'); return; }
     fetchEvents();
-  }, []);
+  }, [isAuthenticated, isAdmin]);
 
-  const handleCreateEvent = async () => {
+  const fetchEvents = async () => {
     setLoading(true);
-    setMessage('');
-    setError('');
-
     try {
-      const response = await fetch(`${API_BASE}/events`, {
+      const res = await fetch(`${API_BASE}/events`);
+      const data = await res.json();
+      if (data.success) setEvents(data.events || []);
+    } catch (err) {
+      console.error('Failed to fetch events:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateEvent = async (e) => {
+    e.preventDefault();
+    setCreating(true); setCreateError(''); setCreateSuccess('');
+    try {
+      const dateTs = Math.floor(new Date(form.date).getTime() / 1000);
+      const res = await fetch(`${API_BASE}/events`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: createForm.title,
-          venue: createForm.venue,
-          date: new Date(createForm.date).getTime() / 1000, // Convert to Unix timestamp
-          price: Number(createForm.price),
-          totalTickets: Number(createForm.totalTickets),
-          metadataURI: createForm.metadataURI
-        })
+          title: form.title,
+          venue: form.venue,
+          date: dateTs,
+          price: Number(form.price),
+          photoUrl: form.photoUrl || '',
+          totalTickets: Number(form.totalTickets),
+        }),
       });
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.message || data.error || 'Failed to create event');
-      }
-
-      setMessage(`Event #${data.event.eventId} created on chain: ${data.event.transactionHash}`);
-      setCreateForm(initialCreateForm);
-      await fetchEvents();
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'Failed to create event');
+      setCreateSuccess(`Event created! ID: ${data.event_id}`);
+      setForm(emptyForm);
+      fetchEvents();
     } catch (err) {
-      setError(err.message);
+      setCreateError(err.message);
     } finally {
-      setLoading(false);
+      setCreating(false);
     }
   };
 
-  const handleUpdateMetadata = async () => {
-    setLoading(true);
-    setMessage('');
-    setError('');
-
-    try {
-      const response = await fetch(`${API_BASE}/events/${updateForm.eventId}/metadata`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          metadataURI: updateForm.metadataURI
-        })
-      });
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.message || data.error || 'Failed to update event metadata');
-      }
-
-      setMessage(`Event #${data.event.eventId} metadata updated: ${data.event.transactionHash}`);
-      setUpdateForm(initialUpdateForm);
-      await fetchEvents();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const inputStyle = {
-    width: '100%',
-    padding: '12px',
-    border: '2px solid #ddd',
-    borderRadius: '4px',
-    fontFamily: 'monospace',
-    fontSize: '14px',
-    background: '#fff'
-  };
-
-  const labelStyle = {
-    fontSize: '12px',
-    fontWeight: 'bold',
-    marginBottom: '6px',
-    display: 'block'
-  };
+  if (!isAuthenticated || !isAdmin) return null;
 
   return (
-    <div style={{ minHeight: '100vh', background: '#fafafa' }}>
-      <div style={{
-        background: '#fff',
-        padding: '2rem',
-        borderBottom: '3px solid #000',
-        position: 'sticky',
-        top: '56px',
-        zIndex: 10
-      }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-          <h1 style={{
-            fontSize: '2rem',
-            fontFamily: 'Syne, sans-serif',
-            marginBottom: '4px'
-          }}>
-            Manage Events
-          </h1>
-          <p style={{ color: '#666', fontSize: '14px' }}>
-            Create contract events and update event metadata
-          </p>
-        </div>
-      </div>
+    <div className="animate-fadeIn min-h-screen bg-gray-50 dark:bg-gray-900 dark-transition">
+      <div className="max-w-6xl mx-auto px-4 py-10">
+        <h1 className="text-3xl font-bold mb-8 text-gray-800 dark:text-white">⚙️ Admin Dashboard</h1>
 
-      <div style={{
-        padding: '2rem',
-        maxWidth: '1200px',
-        margin: '0 auto',
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '24px'
-      }}>
-        <div style={{
-          border: '3px solid #000',
-          background: '#fff',
-          padding: '20px',
-          borderRadius: '8px',
-          boxShadow: '4px 4px 0 #000'
-        }}>
-          <h2 style={{ fontFamily: 'Syne, sans-serif', fontSize: '1.25rem', marginBottom: '16px' }}>
-            Create Event
-          </h2>
-
-          <div style={{ display: 'grid', gap: '12px' }}>
-            <div>
-              <label style={labelStyle}>Title</label>
-              <input
-                style={inputStyle}
-                value={createForm.title}
-                onChange={e => setCreateForm({ ...createForm, title: e.target.value })}
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>Venue</label>
-              <input
-                style={inputStyle}
-                value={createForm.venue}
-                onChange={e => setCreateForm({ ...createForm, venue: e.target.value })}
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>Date</label>
-              <input
-                type="datetime-local"
-                style={inputStyle}
-                value={createForm.date}
-                onChange={e => setCreateForm({ ...createForm, date: e.target.value })}
-              />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <div>
-                <label style={labelStyle}>Price</label>
-                <input
-                  type="number"
-                  min="0"
-                  style={inputStyle}
-                  value={createForm.price}
-                  onChange={e => setCreateForm({ ...createForm, price: e.target.value })}
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>Total Tickets</label>
-                <input
-                  type="number"
-                  min="1"
-                  style={inputStyle}
-                  value={createForm.totalTickets}
-                  onChange={e => setCreateForm({ ...createForm, totalTickets: e.target.value })}
-                />
-              </div>
-            </div>
-            <div>
-              <label style={labelStyle}>Metadata URI</label>
-              <input
-                style={inputStyle}
-                value={createForm.metadataURI}
-                onChange={e => setCreateForm({ ...createForm, metadataURI: e.target.value })}
-              />
-            </div>
-            <button
-              onClick={handleCreateEvent}
-              disabled={loading || !createForm.title || !createForm.venue || !createForm.date || !createForm.price || !createForm.totalTickets || !createForm.metadataURI}
-              style={{
-                width: '100%',
-                padding: '12px',
-                background: '#000',
-                color: '#fff',
-                border: '2px solid #000',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                fontFamily: 'monospace',
-                borderRadius: '4px',
-                fontSize: '14px',
-                opacity: loading ? 0.6 : 1
-              }}
-            >
-              {loading ? 'Submitting...' : 'Create On Chain'}
+        {/* Tabs */}
+        <div className="flex gap-2 mb-8 border-b border-gray-200 dark:border-gray-700">
+          {['events', 'create'].map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              className={`px-5 py-3 text-sm font-semibold border-b-2 transition-colors ${
+                activeTab === tab
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+              }`}>
+              {tab === 'events' ? '📋 All Events' : '➕ Create Event'}
             </button>
-          </div>
+          ))}
         </div>
 
-        <div style={{
-          border: '3px solid #000',
-          background: '#fff',
-          padding: '20px',
-          borderRadius: '8px',
-          boxShadow: '4px 4px 0 #000'
-        }}>
-          <h2 style={{ fontFamily: 'Syne, sans-serif', fontSize: '1.25rem', marginBottom: '16px' }}>
-            Update Metadata
-          </h2>
-
-          <div style={{ display: 'grid', gap: '12px' }}>
-            <div>
-              <label style={labelStyle}>Event ID</label>
-              <input
-                type="number"
-                min="0"
-                style={inputStyle}
-                value={updateForm.eventId}
-                onChange={e => setUpdateForm({ ...updateForm, eventId: e.target.value })}
-              />
+        {/* All Events Tab */}
+        {activeTab === 'events' && (
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-white">All Events</h2>
+              <button onClick={fetchEvents}
+                className="text-blue-600 dark:text-blue-400 text-sm hover:underline flex items-center gap-1">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+              </button>
             </div>
-            <div>
-              <label style={labelStyle}>New Metadata URI</label>
-              <input
-                style={inputStyle}
-                value={updateForm.metadataURI}
-                onChange={e => setUpdateForm({ ...updateForm, metadataURI: e.target.value })}
-              />
-            </div>
-            <button
-              onClick={handleUpdateMetadata}
-              disabled={loading || updateForm.eventId === '' || !updateForm.metadataURI}
-              style={{
-                width: '100%',
-                padding: '12px',
-                background: '#000',
-                color: '#fff',
-                border: '2px solid #000',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                fontFamily: 'monospace',
-                borderRadius: '4px',
-                fontSize: '14px',
-                opacity: loading ? 0.6 : 1
-              }}
-            >
-              {loading ? 'Updating...' : 'Update Metadata'}
-            </button>
 
-            {message && (
-              <div style={{
-                background: '#f0fdf4',
-                color: '#166534',
-                padding: '12px',
-                fontSize: '12px',
-                border: '2px solid #16a34a',
-                borderRadius: '4px',
-                wordBreak: 'break-all'
-              }}>
-                {message}
+            {loading ? (
+              <div className="space-y-3">
+                {[1,2,3].map(i => <div key={i} className="shimmer h-20 rounded-xl" />)}
               </div>
-            )}
-
-            {error && (
-              <div style={{
-                background: '#fee2e2',
-                color: '#dc2626',
-                padding: '12px',
-                fontSize: '12px',
-                border: '2px solid #dc2626',
-                borderRadius: '4px'
-              }}>
-                {error}
+            ) : events.length === 0 ? (
+              <div className="text-center py-16 text-gray-500 dark:text-gray-400">
+                <div className="text-5xl mb-3">📅</div>
+                <p>No events created yet.</p>
               </div>
-            )}
-          </div>
-        </div>
-
-        <div style={{
-          gridColumn: '1 / -1',
-          border: '3px solid #000',
-          background: '#fff',
-          padding: '20px',
-          borderRadius: '8px'
-        }}>
-          <h2 style={{ fontFamily: 'Syne, sans-serif', fontSize: '1.25rem', marginBottom: '16px' }}>
-            On-Chain Events
-          </h2>
-
-          {eventsLoading ? (
-            <p style={{ color: '#666', fontSize: '14px' }}>Loading events...</p>
-          ) : events.length === 0 ? (
-            <p style={{ color: '#666', fontSize: '14px' }}>No events found.</p>
-          ) : (
-            <div style={{ display: 'grid', gap: '12px' }}>
-              {events.map(event => (
-                <div
-                  key={event.id}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '80px 1fr 160px 120px',
-                    gap: '12px',
-                    alignItems: 'center',
-                    padding: '12px',
-                    border: '2px solid #eee',
-                    borderRadius: '6px'
-                  }}
-                >
-                  <div style={{ fontWeight: 'bold' }}>#{event.eventId}</div>
-                  <div>
-                    <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{event.title}</div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>{event.venue} • {event.dateLabel}</div>
-                    <div style={{ fontSize: '11px', color: '#888', wordBreak: 'break-all' }}>{event.metadataURI}</div>
-                  </div>
-                  <div style={{ fontSize: '12px' }}>
-                    {event.ticketsMinted} / {event.totalTickets} minted
-                  </div>
-                  <div style={{ fontWeight: 'bold' }}>₹{Number(event.price).toLocaleString()}</div>
+            ) : (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-700">
+                      <tr>
+                        {['ID', 'Title', 'Venue', 'Date', 'Price', 'Tickets', 'Status'].map(h => (
+                          <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {events.map((event) => {
+                        const dateStr = Number.isFinite(Number(event.date))
+                          ? new Date(Number(event.date) * 1000).toLocaleDateString('en-IN')
+                          : event.date;
+                        const total = Number(event.totalTickets);
+                        const minted = Number(event.ticketsMinted);
+                        const soldOut = minted >= total;
+                        return (
+                          <tr key={event.eventId} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                            <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">#{event.eventId}</td>
+                            <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">{event.title}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{event.venue}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{dateStr}</td>
+                            <td className="px-4 py-3 text-sm font-semibold text-pink-600 dark:text-pink-400">₹{Number(event.price)}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{minted}/{total}</td>
+                            <td className="px-4 py-3">
+                              <span className={`text-xs px-2 py-1 rounded-full font-bold ${
+                                soldOut
+                                  ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                                  : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                              }`}>
+                                {soldOut ? 'Sold Out' : 'Available'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Create Event Tab */}
+        {activeTab === 'create' && (
+          <div className="max-w-2xl">
+            <h2 className="text-xl font-semibold mb-6 text-gray-800 dark:text-white">Create New Event</h2>
+
+            {createSuccess && (
+              <div className="bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200 p-4 rounded-xl mb-4 font-semibold">
+                ✅ {createSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handleCreateEvent} className="bg-white dark:bg-gray-800 rounded-2xl shadow p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Event Title *</label>
+                  <input type="text" required value={form.title}
+                    onChange={e => setForm({ ...form, title: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="Concert, Match, Conference..." />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Venue *</label>
+                  <input type="text" required value={form.venue}
+                    onChange={e => setForm({ ...form, venue: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="Stadium, Arena, Hall..." />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date & Time *</label>
+                  <input type="datetime-local" required value={form.date}
+                    onChange={e => setForm({ ...form, date: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ticket Price (₹) *</label>
+                  <input type="number" required min="1" value={form.price}
+                    onChange={e => setForm({ ...form, price: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Total Tickets *</label>
+                  <input type="number" required min="1" value={form.totalTickets}
+                    onChange={e => setForm({ ...form, totalTickets: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="1000" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Photo URL (optional)</label>
+                  <input type="url" value={form.photoUrl}
+                    onChange={e => setForm({ ...form, photoUrl: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="https://..." />
+                </div>
+              </div>
+
+              {createError && (
+                <div className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 p-3 rounded-lg text-sm">
+                  {createError}
+                </div>
+              )}
+
+              <button type="submit" disabled={creating}
+                className="w-full py-3 bms-button rounded-xl text-base font-bold disabled:opacity-50">
+                {creating ? 'Creating Event on Blockchain...' : '🚀 Create Event'}
+              </button>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   );
-};
+}
 
 export default ManageEventsPage;

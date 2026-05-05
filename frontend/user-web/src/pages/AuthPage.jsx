@@ -4,13 +4,7 @@ import { useAuth } from '../context/AuthContext';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
-const emptyForm = {
-  email: '',
-  password: '',
-  username: '',
-  name: '',
-  otp: ''
-};
+const emptyForm = { email: '', password: '', username: '', otp: '' };
 
 const AuthPage = () => {
   const navigate = useNavigate();
@@ -20,402 +14,178 @@ const AuthPage = () => {
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(false);
 
-  // Redirect to dashboard if already authenticated
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/', { replace: true });
-    }
+    if (isAuthenticated) navigate('/', { replace: true });
   }, [isAuthenticated, navigate]);
 
-  const resolveWalletAddress = (data) => {
-    return data.wallet_address || data.user?.wallet_address || data.user?.walletAddress || null;
-  };
-
   const completeUserLogin = (data) => {
-    const walletAddr = resolveWalletAddress(data);
+    const walletAddr = data.wallet_address || data.user?.wallet_address || null;
     login(data.user, data.token, walletAddr, 'user');
-    setAuthStep('form');
-    setForm(emptyForm);
-    // Redirect happens via useEffect watching isAuthenticated
+    setAuthStep('form'); setForm(emptyForm);
     setTimeout(() => navigate('/'), 500);
   };
 
   const handleUserAuth = async () => {
-    setLoading(true);
-    setAuthError(null);
-
+    setLoading(true); setAuthError(null);
     try {
-      const response = await fetch(`${API_BASE}/user/auth`, {
+      const res = await fetch(`${API_BASE}/user/auth`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: form.email,
-          password: form.password
-        })
+        body: JSON.stringify({ email: form.email, password: form.password }),
       });
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.message || data.error || 'Authentication failed');
-      }
-
-      if (data.otpRequired) {
-        setAuthStep('otp');
-        setAuthError(null);
-        return;
-      }
-
-      // Login successful
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'Authentication failed');
+      if (data.otpRequired) { setAuthStep('otp'); return; }
       completeUserLogin(data);
-    } catch (err) {
-      setAuthError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { setAuthError(err.message); }
+    finally { setLoading(false); }
   };
 
   const handleUserOtpVerify = async () => {
-    setLoading(true);
-    setAuthError(null);
-
+    setLoading(true); setAuthError(null);
     try {
-      const response = await fetch(`${API_BASE}/user/auth`, {
+      const res = await fetch(`${API_BASE}/user/auth`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: form.email,
-          password: form.password,
-          otp: form.otp
-        })
+        body: JSON.stringify({ email: form.email, password: form.password, otp: form.otp }),
       });
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.message || data.error || 'Failed to verify OTP');
-      }
-
-      // OTP verified and signup complete
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'OTP verification failed');
       completeUserLogin(data);
-    } catch (err) {
-      setAuthError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { setAuthError(err.message); }
+    finally { setLoading(false); }
   };
 
   const handleAdminLogin = async () => {
-    setLoading(true);
-    setAuthError(null);
-
+    setLoading(true); setAuthError(null);
     try {
-      const response = await fetch(`${API_BASE}/admin/login`, {
+      const res = await fetch(`${API_BASE}/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: form.username,
-          password: form.password
-        })
+        body: JSON.stringify({ username: form.username, password: form.password }),
       });
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.message || data.error || 'Admin login failed');
-      }
-
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'Admin login failed');
       login(data.admin, data.token, null, 'admin');
-      setForm(emptyForm);
-      setAuthStep('form');
-      // Redirect admin to dashboard or admin panel
+      setForm(emptyForm); setAuthStep('form');
       setTimeout(() => navigate('/admin'), 500);
-    } catch (err) {
-      setAuthError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { setAuthError(err.message); }
+    finally { setLoading(false); }
   };
 
   const handleMetaMaskAuth = async () => {
-    setLoading(true);
-    setAuthError(null);
-
+    setLoading(true); setAuthError(null);
     try {
-      if (!window.ethereum) {
-        throw new Error('MetaMask not installed. Please install MetaMask to continue.');
-      }
-
-      const accounts = await window.ethereum.request({
-        method: 'eth_requestAccounts'
-      });
-
-      if (!accounts || accounts.length === 0) {
-        throw new Error('No MetaMask accounts found');
-      }
-
+      if (!window.ethereum) throw new Error('MetaMask not installed');
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      if (!accounts?.length) throw new Error('No MetaMask accounts found');
       const walletAddress = accounts[0];
-      const mockUser = {
-        id: `metamask_${Date.now()}`,
-        email: walletAddress,
-        wallet_address: walletAddress,
-        auth_method: 'metamask'
-      };
-
+      const mockUser = { id: `metamask_${Date.now()}`, wallet_address: walletAddress, auth_method: 'metamask' };
       login(mockUser, `metamask_token_${Date.now()}`, walletAddress, 'user');
       setTimeout(() => navigate('/'), 500);
-    } catch (err) {
-      setAuthError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { setAuthError(err.message); }
+    finally { setLoading(false); }
   };
 
-  const handleGoogleAuth = async () => {
-    setAuthError('Google sign-in is kept in the UI for now and will be wired after backend support.');
-  };
+  const inputCls = "w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors";
 
   return (
-    <div style={{ minHeight: '100vh', background: '#fafafa', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-      <div style={{ maxWidth: '500px', width: '100%' }}>
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <h1 style={{ fontSize: '2rem', fontFamily: 'Syne, sans-serif', margin: '0 0 0.5rem 0' }}>
-            🎫 BlockMyShow
-          </h1>
-          <p style={{ color: '#666', margin: 0 }}>NFT-Powered Event Ticketing</p>
-        </div>
-
-        {/* Tab Navigation */}
-        <div style={{
-          display: 'flex',
-          gap: '12px',
-          marginBottom: '2rem',
-          borderBottom: '2px solid #e5e7eb'
-        }}>
-          {['user', 'admin'].map(tab => (
-            <button
-              key={tab}
-              onClick={() => {
-                setActiveTab(tab);
-                setAuthStep('form');
-                setForm(emptyForm);
-                setAuthError(null);
-              }}
-              style={{
-                flex: 1,
-                padding: '12px',
-                background: 'none',
-                border: 'none',
-                borderBottom: activeTab === tab ? '3px solid #000' : 'none',
-                fontSize: '1rem',
-                fontWeight: activeTab === tab ? '700' : '500',
-                cursor: 'pointer',
-                color: activeTab === tab ? '#000' : '#999',
-                transition: 'all 0.2s'
-              }}
-            >
-              {tab === 'user' ? 'Attendee' : 'Admin'}
-            </button>
-          ))}
-        </div>
-
-        {error && (
-          <div style={{
-            background: '#fee2e2',
-            color: '#991b1b',
-            padding: '12px',
-            borderRadius: '8px',
-            marginBottom: '1.5rem',
-            fontSize: '0.9rem'
-          }}>
-            {error}
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center px-4 dark-transition">
+      <div className="w-full max-w-md animate-slideUp">
+        {/* Card */}
+        <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl overflow-hidden">
+          {/* Hero top */}
+          <div className="hero-gradient p-8 text-center">
+            <div className="text-5xl mb-2">🎫</div>
+            <h1 className="text-2xl font-bold text-white">BlockMyShow</h1>
+            <p className="text-white/80 text-sm mt-1">NFT-Powered Event Ticketing</p>
           </div>
-        )}
 
-        {/* User Auth Tab */}
-        {activeTab === 'user' && (
-          <div>
-            {authStep === 'form' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <input
-                  type="email"
-                  placeholder="Email address"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  style={{
-                    padding: '12px',
-                    border: '1px solid #ddd',
-                    borderRadius: '8px',
-                    fontSize: '1rem'
-                  }}
-                />
-                <input
-                  type="password"
-                  placeholder="Password"
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  style={{
-                    padding: '12px',
-                    border: '1px solid #ddd',
-                    borderRadius: '8px',
-                    fontSize: '1rem'
-                  }}
-                />
-                <button
-                  onClick={handleUserAuth}
-                  disabled={loading}
-                  style={{
-                    padding: '12px',
-                    background: loading ? '#ccc' : '#000',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '1rem',
-                    fontWeight: '600',
-                    cursor: loading ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  {loading ? 'Loading...' : 'Login / Sign Up'}
+          {/* Body */}
+          <div className="p-6">
+            {/* Tabs */}
+            <div className="flex rounded-xl bg-gray-100 dark:bg-gray-700 p-1 mb-6">
+              {['user', 'admin'].map(tab => (
+                <button key={tab} onClick={() => { setActiveTab(tab); setAuthStep('form'); setForm(emptyForm); setAuthError(null); }}
+                  className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
+                    activeTab === tab
+                      ? 'bg-white dark:bg-gray-600 text-gray-800 dark:text-white shadow'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  }`}>
+                  {tab === 'user' ? '🙋 Attendee' : '⚙️ Admin'}
                 </button>
+              ))}
+            </div>
 
-                <div style={{ display: 'flex', gap: '10px', marginTop: '1rem' }}>
-                  <button
-                    onClick={handleMetaMaskAuth}
-                    disabled={loading}
-                    style={{
-                      flex: 1,
-                      padding: '12px',
-                      background: '#f97316',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: '8px',
-                      fontSize: '0.9rem',
-                      fontWeight: '600',
-                      cursor: loading ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    🦊 MetaMask
-                  </button>
-                  <button
-                    onClick={handleGoogleAuth}
-                    style={{
-                      flex: 1,
-                      padding: '12px',
-                      background: '#ddd',
-                      color: '#000',
-                      border: 'none',
-                      borderRadius: '8px',
-                      fontSize: '0.9rem',
-                      fontWeight: '600',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    🔵 Google
-                  </button>
-                </div>
+            {error && (
+              <div className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 p-3 rounded-xl mb-4 text-sm">
+                {error}
               </div>
             )}
 
-            {authStep === 'otp' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <p style={{ color: '#666', marginBottom: '1rem' }}>
-                  Enter OTP sent to <strong>{form.email}</strong>
-                </p>
-                <input
-                  type="text"
-                  placeholder="6-digit OTP"
-                  value={form.otp}
-                  onChange={(e) => setForm({ ...form, otp: e.target.value.slice(0, 6) })}
+            {/* User Tab */}
+            {activeTab === 'user' && authStep === 'form' && (
+              <div className="space-y-3">
+                <input type="email" placeholder="Email address" value={form.email}
+                  onChange={e => setForm({ ...form, email: e.target.value })}
+                  className={inputCls} />
+                <input type="password" placeholder="Password" value={form.password}
+                  onChange={e => setForm({ ...form, password: e.target.value })}
+                  onKeyDown={e => e.key === 'Enter' && handleUserAuth()}
+                  className={inputCls} />
+                <button onClick={handleUserAuth} disabled={loading}
+                  className="w-full py-3 bms-button rounded-xl text-base font-bold disabled:opacity-50">
+                  {loading ? 'Processing...' : 'Login / Sign Up'}
+                </button>
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200 dark:border-gray-600" /></div>
+                  <div className="relative flex justify-center"><span className="bg-white dark:bg-gray-800 px-3 text-xs text-gray-400">OR</span></div>
+                </div>
+                <button onClick={handleMetaMaskAuth} disabled={loading}
+                  className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-bold transition-colors disabled:opacity-50">
+                  🦊 Continue with MetaMask
+                </button>
+              </div>
+            )}
+
+            {activeTab === 'user' && authStep === 'otp' && (
+              <div className="space-y-3">
+                <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 p-3 rounded-xl text-sm">
+                  OTP sent to <strong>{form.email}</strong>
+                </div>
+                <input type="text" placeholder="Enter 6-digit OTP" value={form.otp}
+                  onChange={e => setForm({ ...form, otp: e.target.value.slice(0, 6) })}
                   maxLength="6"
-                  style={{
-                    padding: '12px',
-                    border: '1px solid #ddd',
-                    borderRadius: '8px',
-                    fontSize: '1rem'
-                  }}
-                />
-                <button
-                  onClick={handleUserOtpVerify}
-                  disabled={loading}
-                  style={{
-                    padding: '12px',
-                    background: loading ? '#ccc' : '#000',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '1rem',
-                    fontWeight: '600',
-                    cursor: loading ? 'not-allowed' : 'pointer'
-                  }}
-                >
+                  className={`${inputCls} text-center text-2xl tracking-widest`} />
+                <button onClick={handleUserOtpVerify} disabled={loading}
+                  className="w-full py-3 bms-button rounded-xl text-base font-bold disabled:opacity-50">
                   {loading ? 'Verifying...' : 'Verify OTP'}
                 </button>
-                <button
-                  onClick={() => {
-                    setAuthStep('form');
-                    setForm({ ...form, otp: '' });
-                  }}
-                  style={{
-                    padding: '12px',
-                    background: '#f3f4f6',
-                    color: '#000',
-                    border: '1px solid #ddd',
-                    borderRadius: '8px',
-                    fontSize: '1rem',
-                    fontWeight: '600',
-                    cursor: 'pointer'
-                  }}
-                >
+                <button onClick={() => { setAuthStep('form'); setForm({ ...form, otp: '' }); }}
+                  className="w-full py-3 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                   Back
                 </button>
               </div>
             )}
-          </div>
-        )}
 
-        {/* Admin Auth Tab */}
-        {activeTab === 'admin' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <input
-              type="text"
-              placeholder="Admin username"
-              value={form.username}
-              onChange={(e) => setForm({ ...form, username: e.target.value })}
-              style={{
-                padding: '12px',
-                border: '1px solid #ddd',
-                borderRadius: '8px',
-                fontSize: '1rem'
-              }}
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              style={{
-                padding: '12px',
-                border: '1px solid #ddd',
-                borderRadius: '8px',
-                fontSize: '1rem'
-              }}
-            />
-            <button
-              onClick={handleAdminLogin}
-              disabled={loading}
-              style={{
-                padding: '12px',
-                background: loading ? '#ccc' : '#000',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '1rem',
-                fontWeight: '600',
-                cursor: loading ? 'not-allowed' : 'pointer'
-              }}
-            >
-              {loading ? 'Loading...' : 'Admin Login'}
-            </button>
+            {/* Admin Tab */}
+            {activeTab === 'admin' && (
+              <div className="space-y-3">
+                <input type="text" placeholder="Admin username" value={form.username}
+                  onChange={e => setForm({ ...form, username: e.target.value })}
+                  className={inputCls} />
+                <input type="password" placeholder="Password" value={form.password}
+                  onChange={e => setForm({ ...form, password: e.target.value })}
+                  onKeyDown={e => e.key === 'Enter' && handleAdminLogin()}
+                  className={inputCls} />
+                <button onClick={handleAdminLogin} disabled={loading}
+                  className="w-full py-3 bg-gray-900 dark:bg-gray-700 hover:bg-gray-800 text-white rounded-xl text-base font-bold transition-colors disabled:opacity-50">
+                  {loading ? 'Logging in...' : '⚙️ Admin Login'}
+                </button>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

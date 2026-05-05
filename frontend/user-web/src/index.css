@@ -1,1 +1,13 @@
 @import "tailwindcss";
+@import "./styles/bookMyShowStyles.css";
+@import "./styles/animations.css";
+@import "./styles/darkMode.css";
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}

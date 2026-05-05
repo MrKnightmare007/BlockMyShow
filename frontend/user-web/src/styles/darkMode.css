@@ -1,0 +1,70 @@
+/* Global dark mode styles */
+.dark {
+  color-scheme: dark;
+}
+
+.dark body {
+  background-color: #111827;
+  color: #f3f4f6;
+}
+
+/* Navigation */
+.dark nav {
+  background-color: #1f2937;
+  border-color: #374151;
+}
+
+/* Main content area */
+.dark main {
+  background-color: #111827;
+}
+
+/* Event cards */
+.dark .event-grid {
+  background-color: #111827;
+}
+
+/* Form elements */
+.dark label {
+  color: #e5e7eb;
+}
+
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: #374151;
+  color: #f3f4f6;
+  border-color: #4b5563;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #9ca3af;
+}
+
+/* Buttons */
+.dark button.primary { background-color: #3b82f6; color: white; }
+.dark button.secondary { background-color: #4b5563; color: white; }
+.dark button.danger { background-color: #ef4444; color: white; }
+.dark button.success { background-color: #10b981; color: white; }
+
+/* Table styles for dark mode */
+.dark table { color: #f3f4f6; }
+.dark table th { background-color: #1f2937; color: #f3f4f6; }
+.dark table td { border-color: #374151; }
+.dark table tr:hover { background-color: #374151; }
+
+/* Toast notifications */
+.dark .toast-success { background-color: #065f46; color: #d1fae5; }
+.dark .toast-error { background-color: #991b1b; color: #fee2e2; }
+.dark .toast-info { background-color: #1e40af; color: #dbeafe; }
+
+/* Admin panel */
+.dark .admin-panel { background-color: #111827; }
+.dark .admin-content { background-color: #1f2937; }
+
+/* Ticket details */
+.dark .ticket-details { background-color: #1f2937; border-color: #374151; }
+
+/* QR scanner area */
+.dark .qr-scanner { background-color: #111827; border-color: #374151; }
