@@ -60,7 +60,7 @@ const OTPVerificationModal = ({ isOpen, onClose, event, identityId, onOTPVerifie
     setError('');
 
     try {
-      const API_BASE = 'http://localhost:5000/api';
+      import API_BASE from '../utils/api';
 
       const res = await fetch(`${API_BASE}/tickets/confirm`, {
         method: 'POST',

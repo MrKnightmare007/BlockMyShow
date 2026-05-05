@@ -7,7 +7,7 @@ import { useLocation as useAppLocation } from '../context/LocationContext';
 import { useCurrency, CRYPTO_CONFIG } from '../context/CurrencyContext';
 import toast from 'react-hot-toast';
 
-const API_BASE = 'http://localhost:5000/api';
+import API_BASE from '../utils/api';
 
 // Icons
 const Icon = {

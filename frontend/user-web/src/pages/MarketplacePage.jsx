@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import BuyResaleModal from '../components/BuyResaleModal';
 
-const API_BASE = 'http://localhost:5000/api';
+import API_BASE from '../utils/api';
 
 const GRADIENT_COLORS = [
   'linear-gradient(135deg, #31bbaf 0%, #0a0a0a 100%)',

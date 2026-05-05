@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
-const API_BASE = 'http://localhost:5000/api';
+import API_BASE from '../utils/api';
 
 const Icon = {
   Plus: () => (

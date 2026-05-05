@@ -5,7 +5,7 @@ import { signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider, isMockFirebase } from '../utils/firebase';
 import toast from 'react-hot-toast';
 
-const API_BASE = 'http://localhost:5000/api';
+import API_BASE from '../utils/api';
 
 // Icons
 const Icon = {

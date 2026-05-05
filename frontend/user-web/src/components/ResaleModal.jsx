@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 
-const API_BASE = 'http://localhost:5000/api';
+import API_BASE from '../utils/api';
 
 const ResaleModal = ({ isOpen, onClose, ticket, token, onResaleSuccess }) => {
   const [price, setPrice] = useState(ticket.sale_price || '');
