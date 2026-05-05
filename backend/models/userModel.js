@@ -21,7 +21,18 @@ const getUserByEmail = async (email) => {
   return response.documents[0]
 }
 
+const getUserByWallet = async (walletAddress) => {
+  const response = await databases.listDocuments(
+    process.env.APPWRITE_DATABASE_ID,
+    process.env.APPWRITE_USERS_COLLECTION_ID,
+    [sdk.Query.equal('wallet_address', walletAddress)]
+  )
+
+  return response.documents[0]
+}
+
 module.exports = {
   createUser,
-  getUserByEmail
+  getUserByEmail,
+  getUserByWallet
 }

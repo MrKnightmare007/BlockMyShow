@@ -9,6 +9,7 @@ import ProfilePage from './pages/ProfilePage';
 import TicketsPage from './pages/TicketsPage';
 import MarketplacePage from './pages/MarketplacePage';
 import ManageEventsPage from './pages/ManageEventsPage';
+import AdminAuthPage from './pages/AdminAuthPage';
 import Navbar from './components/Navbar';
 import Loader from './components/Loader';
 import { useAuth } from './context/AuthContext';
@@ -54,6 +55,7 @@ const AppContent = () => {
         </>
       ) : (
         <Routes>
+          <Route path="/admin" element={<AdminAuthPage />} />
           <Route path="*" element={<AuthPage />} />
         </Routes>
       )}

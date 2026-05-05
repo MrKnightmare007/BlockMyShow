@@ -17,6 +17,13 @@ const Icon = {
       <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
     </svg>
   ),
+  Wallet: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/>
+      <path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/>
+      <path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/>
+    </svg>
+  ),
 };
 
 /**
@@ -25,43 +32,51 @@ const Icon = {
  *  - POST /api/admin/login → admin authentication
  */
 const AuthPage = () => {
-  const { login, setAuthError, error } = useAuth();
-  const [authMode, setAuthMode] = useState('user'); // 'user' or 'admin'
-  const [form, setForm] = useState({ email: '', password: '', otp: '', adminUser: '' });
+  const { login } = useAuth();
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [form, setForm] = useState({ email: '', password: '', otp: '' });
   const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // ─── User Email Auth: Send email + password (handles both login & signup) ────────────────────────────────────────
+  // ─── Email/Password Auth ──────────────────────────────────────────────────
 
-  const handleSendOTP = async () => {
+  const handleEmailAuth = async () => {
     if (!form.email || !form.password) {
       toast.error('Email and password required');
       return;
     }
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/user/auth`, {
+      const endpoint = '/user/auth'; 
+      const res = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: form.email, password: form.password }),
       });
       const data = await res.json();
       
-      // Status 200: User exists and password is valid → Login successful
       if (res.status === 200 && data.success) {
-        login(data.user, data.token, data.user?.wallet_address || null, 'user');
-        toast.success('Logged in successfully!');
+        if (isSignUp) {
+          toast.error('Account already exists. Please Sign In.');
+          setIsSignUp(false);
+        } else {
+          login(data.user, data.token, data.user?.wallet_address || null, 'user');
+          toast.success('Logged in successfully!');
+        }
         return;
       }
       
-      // Status 202: User doesn't exist → Need OTP for signup
       if (res.status === 202 && data.success) {
-        setOtpSent(true);
-        toast.success('OTP sent to ' + form.email);
+        if (isSignUp) {
+          setOtpSent(true);
+          toast.success('OTP sent to ' + form.email);
+        } else {
+          toast.error('Account not found. Please Sign Up.');
+          setIsSignUp(true);
+        }
         return;
       }
       
-      // Any other response is an error
       throw new Error(data.message || 'Authentication failed');
     } catch (err) {
       toast.error(err.message);
@@ -69,8 +84,6 @@ const AuthPage = () => {
       setLoading(false);
     }
   };
-
-  // ─── User Email Auth: Verify OTP ──────────────────────────────────────
 
   const handleVerifyOTP = async () => {
     if (!form.otp || form.otp.length !== 6) {
@@ -87,7 +100,7 @@ const AuthPage = () => {
       const data = await res.json();
       if (!data.success) throw new Error(data.message || 'OTP verification failed');
       login(data.user, data.token, data.user?.wallet_address || null, 'user');
-      toast.success('Logged in successfully!');
+      toast.success('Account created successfully!');
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -95,24 +108,81 @@ const AuthPage = () => {
     }
   };
 
-  // ─── Admin Login ───────────────────────────────────────────────────────
+  // ─── Social Auth ─────────────────────────────────────────────────────────
 
-  const handleAdminLogin = async () => {
-    if (!form.adminUser || !form.password) {
-      toast.error('Username and password required');
+  const handleGoogleAuth = async () => {
+    console.log("Initiating Google Auth... Mock Mode:", isMockFirebase);
+    setLoading(true);
+    try {
+      let googleUser;
+      
+      if (isMockFirebase) {
+        console.log("Using Mock Firebase Bypass");
+        // Mock Google login bypass
+        googleUser = {
+          email: 'mock.user@gmail.com',
+          displayName: 'Mock Google User',
+          uid: 'mock_google_uid_' + Date.now()
+        };
+        await new Promise(resolve => setTimeout(resolve, 800)); // Simulate delay
+      } else {
+        console.log("Using Real Firebase signInWithPopup");
+        const result = await signInWithPopup(auth, googleProvider);
+        googleUser = result.user;
+      }
+      
+      console.log("Google User obtained:", googleUser.email);
+
+      const res = await fetch(`${API_BASE}/user/auth-google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: googleUser.email, 
+          name: googleUser.displayName, 
+          uid: googleUser.uid 
+        }),
+      });
+      
+      console.log("Backend response status:", res.status);
+      const data = await res.json();
+      
+      if (!data.success) {
+        console.error("Backend Auth Error:", data.message);
+        throw new Error(data.message || 'Google auth failed');
+      }
+      
+      console.log("Auth successful, logging in user:", data.user?.email);
+      login(data.user, data.token, data.user?.wallet_address || null, 'user');
+      toast.success(isMockFirebase ? 'Logged in via Mock Google' : 'Google authentication successful!');
+    } catch (err) {
+      console.error("Critical Google Auth Error:", err);
+      toast.error(err.message || "Failed to authenticate with Google");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMetaMaskAuth = async () => {
+    if (!window.ethereum) {
+      toast.error('MetaMask not detected! Please install the extension.');
       return;
     }
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/admin/login`, {
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const walletAddress = accounts[0];
+      
+      const res = await fetch(`${API_BASE}/user/auth-wallet`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: form.adminUser, password: form.password }),
+        body: JSON.stringify({ walletAddress }),
       });
       const data = await res.json();
-      if (!data.success) throw new Error(data.message || 'Admin login failed');
-      login(data.admin || { role: 'admin', username: form.adminUser }, data.token, null, 'admin');
-      toast.success('Admin logged in!');
+      
+      if (!data.success) throw new Error(data.message || 'Wallet auth failed');
+      
+      login(data.user, data.token, walletAddress, 'user');
+      toast.success('MetaMask connected!');
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -131,7 +201,7 @@ const AuthPage = () => {
       color: 'var(--text)'
     }}>
       {/* Full-screen loader overlay */}
-      {loading && <Loader fullScreen text={otpSent ? 'Verifying OTP...' : 'Authenticating...'} />}
+      {loading && <Loader fullScreen text={otpSent ? 'Verifying...' : 'Authenticating...'} />}
 
       {/* Left Panel – Branding */}
       <div className="neon-bg-container" style={{
@@ -196,156 +266,143 @@ const AuthPage = () => {
         justifyContent: 'center'
       }}>
         <div style={{ maxWidth: '400px' }}>
-          <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>
-            Welcome to BlockMyShow
+          <h2 style={{ fontSize: '1.5rem', marginBottom: '2rem', fontFamily: 'Syne, sans-serif', fontWeight: 700 }}>
+            {isSignUp ? 'Initialize Node' : 'Access Network'}
           </h2>
 
-          {/* Auth Mode Toggle: User or Admin */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '2rem' }}>
+          {/* Sign In / Sign Up Tabs */}
+          <div style={{ display: 'flex', marginBottom: '2rem', borderBottom: '2px solid var(--border)' }}>
             <button
-              onClick={() => {
-                setAuthMode('user');
-                setOtpSent(false);
-                setForm({ email: '', password: '', otp: '', adminUser: '' });
-              }}
-              style={{
-                flex: 1, 
-                padding: '12px',
-                border: authMode === 'user' ? '2px solid var(--primary)' : '2px solid var(--border)',
-                background: authMode === 'user' ? 'var(--primary)' : 'var(--surface)',
-                color: authMode === 'user' ? '#000' : 'var(--text)',
-                cursor: 'pointer',
-                fontFamily: 'monospace',
-                fontSize: '13px',
-                fontWeight: 'bold',
-                borderRadius: '4px',
-                transition: 'all 0.2s',
-                boxShadow: authMode === 'user' ? '0 0 15px var(--primary)' : 'none'
-              }}
-            >
-              👤 User Login
-            </button>
-            <button
-              onClick={() => {
-                setAuthMode('admin');
-                setOtpSent(false);
-                setForm({ email: '', password: '', otp: '', adminUser: '' });
-              }}
+              onClick={() => { setIsSignUp(false); setOtpSent(false); }}
               style={{
                 flex: 1,
                 padding: '12px',
-                border: authMode === 'admin' ? '2px solid var(--primary)' : '2px solid var(--border)',
-                background: authMode === 'admin' ? 'var(--primary)' : 'var(--surface)',
-                color: authMode === 'admin' ? '#000' : 'var(--text)',
+                background: 'transparent',
+                color: !isSignUp ? 'var(--primary)' : 'var(--muted)',
+                border: 'none',
+                borderBottom: !isSignUp ? '3px solid var(--primary)' : 'none',
                 cursor: 'pointer',
-                fontFamily: 'monospace',
-                fontSize: '13px',
                 fontWeight: 'bold',
-                borderRadius: '4px',
-                transition: 'all 0.2s',
-                boxShadow: authMode === 'admin' ? '0 0 15px var(--primary)' : 'none'
+                fontFamily: 'monospace',
+                fontSize: '14px',
+                transition: 'all 0.2s'
               }}
             >
-              ⚙️ Admin Login
+              SIGN IN
+            </button>
+            <button
+              onClick={() => { setIsSignUp(true); setOtpSent(false); }}
+              style={{
+                flex: 1,
+                padding: '12px',
+                background: 'transparent',
+                color: isSignUp ? 'var(--primary)' : 'var(--muted)',
+                border: 'none',
+                borderBottom: isSignUp ? '3px solid var(--primary)' : 'none',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontFamily: 'monospace',
+                fontSize: '14px',
+                transition: 'all 0.2s'
+              }}
+            >
+              SIGN UP
             </button>
           </div>
 
-          {/* USER LOGIN FLOW */}
-          {authMode === 'user' && (
-            <div>
-              {otpSent ? (
-                // Step 2: Enter OTP (only for new accounts)
-                <>
-                  <p style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '16px', lineHeight: 1.5 }}>
-                    6-digit OTP sent to <strong style={{ color: 'var(--primary)' }}>{form.email}</strong>
-                  </p>
-                  <input
-                    type="text"
-                    placeholder="Enter OTP"
-                    maxLength={6}
-                    value={form.otp}
-                    onChange={e => setForm({ ...form, otp: e.target.value })}
-                    style={inputStyle}
-                  />
-                  <button
-                    onClick={handleVerifyOTP}
-                    disabled={loading || form.otp.length !== 6}
-                    style={btnStyle(loading || form.otp.length !== 6)}
-                  >
-                    {loading ? 'Creating Account...' : 'Verify OTP & Create Account'}
-                  </button>
-                  <button
-                    onClick={() => setOtpSent(false)}
-                    style={{ ...btnStyle(false), background: 'var(--surface)', color: 'var(--text)', border: '2px solid var(--border)' }}
-                  >
-                    ← Back
-                  </button>
-                </>
-              ) : (
-                // Step 1: Enter email & password
-                <>
-                  <input
-                    type="email"
-                    placeholder="Your email address"
-                    value={form.email}
-                    onChange={e => setForm({ ...form, email: e.target.value })}
-                    style={inputStyle}
-                  />
-                  <input
-                    type="password"
-                    placeholder="Your password"
-                    value={form.password}
-                    onChange={e => setForm({ ...form, password: e.target.value })}
-                    style={inputStyle}
-                  />
-                  <button
-                    onClick={handleSendOTP}
-                    disabled={loading || !form.email || !form.password}
-                    style={btnStyle(loading || !form.email || !form.password)}
-                  >
-                    {loading ? 'Checking...' : 'Login / Signup'}
-                  </button>
-                  <p style={{ fontSize: '12px', color: 'var(--muted)', textAlign: 'center', marginTop: '16px', lineHeight: 1.5 }}>
-                    🔐 Existing account? → Direct login<br/>
-                    ✨ New account? → Creates after OTP verification
-                  </p>
-                </>
-              )}
-            </div>
-          )}
+          <div>
+            {otpSent ? (
+              <>
+                <p style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '16px', lineHeight: 1.5 }}>
+                  6-digit security string sent to <strong style={{ color: 'var(--primary)' }}>{form.email}</strong>
+                </p>
+                <input
+                  type="text"
+                  placeholder="ENTER OTP"
+                  maxLength={6}
+                  value={form.otp}
+                  onChange={e => setForm({ ...form, otp: e.target.value })}
+                  style={inputStyle}
+                  onKeyDown={(e) => e.key === 'Enter' && handleVerifyOTP()}
+                />
+                <button
+                  onClick={handleVerifyOTP}
+                  disabled={loading || form.otp.length !== 6}
+                  style={btnStyle(loading || form.otp.length !== 6)}
+                >
+                  {loading ? 'VERIFYING...' : 'FINALIZE SIGNUP'}
+                </button>
+                <button
+                  onClick={() => setOtpSent(false)}
+                  style={{ ...btnStyle(false), background: 'var(--surface)', color: 'var(--text)', border: '2px solid var(--border)' }}
+                >
+                  ← BACK
+                </button>
+              </>
+            ) : (
+              <>
+                <input
+                  type="email"
+                  placeholder="EMAIL ADDRESS"
+                  value={form.email}
+                  onChange={e => setForm({ ...form, email: e.target.value })}
+                  style={inputStyle}
+                  onKeyDown={(e) => e.key === 'Enter' && handleEmailAuth()}
+                />
+                <input
+                  type="password"
+                  placeholder="PASSWORD"
+                  value={form.password}
+                  onChange={e => setForm({ ...form, password: e.target.value })}
+                  style={inputStyle}
+                  onKeyDown={(e) => e.key === 'Enter' && handleEmailAuth()}
+                />
+                <button
+                  onClick={handleEmailAuth}
+                  disabled={loading || !form.email || !form.password}
+                  style={btnStyle(loading || !form.email || !form.password)}
+                >
+                  {loading ? 'PROCESSING...' : isSignUp ? 'REQUEST OTP' : 'LOGIN'}
+                </button>
 
-          {/* ADMIN LOGIN FLOW */}
-          {authMode === 'admin' && (
-            <div>
-              <p style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>⚙️ Admin Access Only</p>
-              <input
-                type="text"
-                placeholder="Admin username"
-                value={form.adminUser}
-                onChange={e => setForm({ ...form, adminUser: e.target.value })}
-                style={inputStyle}
-              />
-              <input
-                type="password"
-                placeholder="Admin password"
-                value={form.password}
-                onChange={e => setForm({ ...form, password: e.target.value })}
-                style={inputStyle}
-              />
-              <button
-                onClick={handleAdminLogin}
-                disabled={loading || !form.adminUser || !form.password}
-                style={btnStyle(loading || !form.adminUser || !form.password)}
-              >
-                {loading ? 'Logging in...' : 'Admin Login'}
-              </button>
-            </div>
-          )}
+                <div style={{ display: 'flex', alignItems: 'center', margin: '2rem 0', gap: '10px' }}>
+                  <div style={{ flex: 1, height: '1px', background: 'var(--border)' }}></div>
+                  <span style={{ fontSize: '10px', color: 'var(--muted)', letterSpacing: '2px' }}>OR CONNECT WITH</span>
+                  <div style={{ flex: 1, height: '1px', background: 'var(--border)' }}></div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <button
+                    onClick={handleGoogleAuth}
+                    className="brutal-btn"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', background: 'var(--surface)', color: 'var(--text)' }}
+                  >
+                    <Icon.Google /> GOOGLE
+                  </button>
+                  <button
+                    onClick={handleMetaMaskAuth}
+                    className="brutal-btn"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', background: 'var(--surface)', color: 'var(--text)' }}
+                  >
+                    <Icon.Wallet /> METAMASK
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+          
+          {/* Admin Login Link */}
+          <div style={{ marginTop: '3rem', textAlign: 'center', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+            <a href="/admin" style={{ fontSize: '11px', color: 'var(--muted)', textDecoration: 'none', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: 'bold' }}>
+              ⚙️ Organization Access
+            </a>
+          </div>
         </div>
       </div>
     </div>
   );
 };
+
 
 // ── Shared input / button styles ─────────────────────────────────────────────
 

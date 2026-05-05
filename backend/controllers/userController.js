@@ -1,4 +1,4 @@
-const { createUser, getUserByEmail } = require('../models/userModel')
+const { createUser, getUserByEmail, getUserByWallet } = require('../models/userModel')
 const { hashPassword, comparePassword } = require('../utils/hash')
 const { generateToken } = require('../service/jwtService')
 const {
@@ -116,6 +116,68 @@ const auth = async (req, res) => {
   }
 }
 
+const googleAuth = async (req, res) => {
+  try {
+    const { email, name, uid } = req.body
+    if (!email) return res.status(400).json({ success: false, message: 'Email required' })
+
+    const normalizedEmail = email.trim().toLowerCase()
+    let user = await getUserByEmail(normalizedEmail)
+
+    if (!user) {
+      // Create new user for first-time Google login
+      const wallet = generateWallet()
+      await sendWalletEmail(normalizedEmail, wallet.privateKey, wallet.address)
+      
+      user = await createUser({
+        email: normalizedEmail,
+        name: name || email.split('@')[0],
+        wallet_address: wallet.address,
+        auth_provider: 'google',
+        firebase_uid: uid
+      })
+    }
+
+    const token = buildUserToken(user)
+    res.json({
+      success: true,
+      token,
+      user: sanitizeUser(user)
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message })
+  }
+}
+
+const walletAuth = async (req, res) => {
+  try {
+    const { walletAddress } = req.body
+    if (!walletAddress) return res.status(400).json({ success: false, message: 'Wallet address required' })
+
+    let user = await getUserByWallet(walletAddress)
+
+    if (!user) {
+      // Create new user for first-time Wallet login
+      user = await createUser({
+        wallet_address: walletAddress,
+        auth_provider: 'metamask',
+        email: `wallet_${walletAddress.slice(0, 8)}@blockmyshow.internal` // Fallback email
+      })
+    }
+
+    const token = buildUserToken(user)
+    res.json({
+      success: true,
+      token,
+      user: sanitizeUser(user)
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message })
+  }
+}
+
 module.exports = {
-  auth
+  auth,
+  googleAuth,
+  walletAuth
 }
