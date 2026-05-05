@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import Loader from '../components/Loader';
 
 import API_BASE from '../utils/api';
 
@@ -505,19 +506,17 @@ export default function TicketsPage() {
         </div>
 
         {/* Content */}
-        {loading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {[1, 2].map(i => (
-              <div key={i} className="brutal-card" style={{ height: '120px', opacity: 0.4, background: 'var(--surface)', animation: 'fadeIn 0.3s ease' }} />
-            ))}
-          </div>
-        ) : error ? (
+        {loading && <Loader fullScreen text="Accessing ticket vault..." />}
+
+        {!loading && error && (
           <div className="brutal-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
             <div style={{ fontSize: '2rem', marginBottom: '12px' }}>⚠</div>
             <p style={{ color: '#ef4444', fontFamily: 'Space Mono, monospace', fontSize: '13px', marginBottom: '16px' }}>{error}</p>
             <button onClick={fetchTickets} className="brutal-btn" style={{ padding: '10px 24px', fontSize: '13px' }}>Try Again</button>
           </div>
-        ) : currentTickets.length === 0 ? (
+        )}
+
+        {!loading && !error && currentTickets.length === 0 && (
           <div className="brutal-card fade-in" style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--muted)' }}>
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', opacity: 0.4 }}>
               <Icon.Ticket size={48} />
@@ -536,7 +535,9 @@ export default function TicketsPage() {
               </Link>
             )}
           </div>
-        ) : (
+        )}
+
+        {!loading && !error && currentTickets.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {currentTickets.map((ticket, i) => (
               <TicketCard

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import Loader from '../components/Loader';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 const COLORS = ['#4a90e2', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'];
@@ -54,11 +55,7 @@ function EventsPage() {
           </div>
         </div>
 
-        {loading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1,2,3,4,5,6].map(i => <div key={i} className="shimmer h-72 rounded-xl" />)}
-          </div>
-        )}
+        {loading && <Loader fullScreen text="Discovering events..." />}
 
         {error && (
           <div className="text-center py-12">

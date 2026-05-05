@@ -6,8 +6,8 @@ import EventCard from '../components/EventCard';
 import { useLocation as useAppLocation } from '../context/LocationContext';
 import { useCurrency, CRYPTO_CONFIG } from '../context/CurrencyContext';
 import toast from 'react-hot-toast';
-
 import API_BASE from '../utils/api';
+import Loader from '../components/Loader';
 
 // Icons
 const Icon = {
@@ -354,7 +354,8 @@ const DashboardPage = () => {
   };
 
   return (
-    <div style={{ minHeight: 'calc(100vh - 60px)', background: 'var(--bg)', padding: '2rem' }}>
+    <div style={{ minHeight: 'calc(100vh - 60px)', background: 'var(--bg)', color: 'var(--text)', padding: '2rem' }}>
+      {loadingEvents && <Loader fullScreen text="Fetching latest events..." />}
       
       {/* 2-Column Layout */}
       <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', gap: '30px', flexDirection: 'row', flexWrap: 'wrap' }}>
