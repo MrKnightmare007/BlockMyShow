@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import Loader from '../components/Loader';
 import toast from 'react-hot-toast';
 
-const API_BASE = 'http://localhost:5000/api';
+import API_BASE from '../utils/api';
 
 /**
  * AdminAuthPage — dedicated admin authentication

@@ -131,9 +131,24 @@ const createEventOnChain = async (data) => {
   )
   const receipt = await tx.wait()
 
-  // Fetch the full event from contract to return complete details including photoUrl
-  const eventInfo = await contract.getEvent(Number(eventId))
-  const normalizedEvent = normalizeEvent(eventInfo)
+  let normalizedEvent = {
+    title: data.title,
+    venue: data.venue,
+    date: data.date,
+    price: data.price,
+    photoUrl: data.photoUrl || '',
+    totalTickets: data.totalTickets,
+    ticketsMinted: 0
+  }
+
+  try {
+    // Fetch the full event from contract to return complete details including photoUrl
+    const eventInfo = await contract.getEvent(Number(eventId))
+    normalizedEvent = normalizeEvent(eventInfo)
+  } catch (err) {
+    console.warn('Failed to fetch event info after creation, using local data:', err.message)
+    normalizedEvent.eventId = Number(eventId)
+  }
 
   return {
     ...normalizedEvent,

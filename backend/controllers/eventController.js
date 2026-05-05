@@ -98,7 +98,7 @@ const createEvent = async (req, res) => {
   } catch (err) {
     res.status(500).json({
       success: false,
-      error: err.message
+      message: err.message
     })
   }
 }
@@ -137,7 +137,7 @@ const updateEvent = async (req, res) => {
   } catch (err) {
     res.status(500).json({
       success: false,
-      error: err.message
+      message: err.message
     })
   }
 }
@@ -153,7 +153,7 @@ const getEvents = async (req, res) => {
   } catch (err) {
     res.status(500).json({
       success: false,
-      error: err.message
+      message: err.message
     })
   }
 }
@@ -169,7 +169,7 @@ const getEvent = async (req, res) => {
   } catch (err) {
     res.status(500).json({
       success: false,
-      error: err.message
+      message: err.message
     })
   }
 }
