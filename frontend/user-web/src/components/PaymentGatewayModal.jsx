@@ -1,445 +1,258 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
-// Icons
-const Icon = {
-  X: () => (
-    <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M18 6L6 18"/><path d="M6 6l12 12"/>
-    </svg>
-  ),
-  CreditCard: () => (
-    <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>
-    </svg>
-  ),
-  CheckCircle: () => (
-    <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
-    </svg>
-  ),
-  AlertCircle: () => (
-    <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-    </svg>
-  ),
-};
+const API_BASE = 'http://localhost:5000/api';
 
-/**
- * PaymentGatewayModal
- * Fake payment gateway for testing
- * Later will be replaced with Razorpay integration
- * 
- * Flow: Payment Review → Enter Card Details → Processing → Success/Failure
- */
-const PaymentGatewayModal = ({ isOpen, onClose, event, amount, onPaymentSuccess }) => {
-  const [step, setStep] = useState(1); // 1: Review, 2: Card Details, 3: Processing, 4: Success/Failure
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCVV, setCardCVV] = useState('');
-  const [cardName, setCardName] = useState('');
+const PaymentGatewayModal = ({ isOpen, onClose, event, onPaymentSuccess }) => {
+  const { token } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
-  const [transactionId, setTransactionId] = useState('');
+  const [error, setError]     = useState('');
+  const [status, setStatus]   = useState('idle'); // idle | creating | paying | verifying | done | error
 
-  const resetState = () => {
-    setStep(1);
-    setCardNumber('');
-    setCardExpiry('');
-    setCardCVV('');
-    setCardName('');
-    setLoading(false);
-    setError('');
-    setSuccess(false);
-    setTransactionId('');
+  // Load Razorpay script
+  useEffect(() => {
+    if (!isOpen) return;
+    if (window.Razorpay) return;
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onerror = () => { setError('Failed to load Razorpay SDK'); setStatus('error'); };
+    document.body.appendChild(script);
+  }, [isOpen]);
+
+  // Auto-trigger payment when modal opens
+  useEffect(() => {
+    if (isOpen && status === 'idle' && event?.price > 0) {
+      // Small delay so the modal renders first, then trigger
+      const t = setTimeout(() => handlePayment(), 400);
+      return () => clearTimeout(t);
+    }
+  }, [isOpen]);
+
+  const handlePayment = async () => {
+    if (!event?.price) { setError('Event price not available'); setStatus('error'); return; }
+    setLoading(true); setError(''); setStatus('creating');
+
+    try {
+      // Step 1: Create order
+      const createRes = await fetch(`${API_BASE}/payment/create-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          amount: parseFloat(event.price),
+          eventId: event.eventId || event.id,
+          eventTitle: event.title,
+        }),
+      });
+      const orderData = await createRes.json();
+      if (!orderData.success) throw new Error(orderData.message || 'Failed to create order');
+
+      setStatus('paying');
+
+      // Step 2: Open Razorpay checkout
+      if (!window.Razorpay) throw new Error('Razorpay SDK not loaded. Please refresh and try again.');
+
+      const options = {
+        key: orderData.key_id,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'BlockMyShow',
+        description: `Ticket: ${event.title}`,
+        order_id: orderData.order_id,
+        handler: async (response) => {
+          // Step 3: Verify
+          setStatus('verifying');
+          try {
+            const verifyRes = await fetch(`${API_BASE}/payment/verify`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({
+                order_id: response.razorpay_order_id,
+                payment_id: response.razorpay_payment_id,
+                signature: response.razorpay_signature,
+                eventId: event.eventId || event.id,
+              }),
+            });
+            const verifyData = await verifyRes.json();
+            if (!verifyData.success) throw new Error(verifyData.message || 'Payment verification failed');
+
+            setStatus('done');
+            toast.success('💳 Payment verified!');
+            onPaymentSuccess({
+              payment_id: verifyData.payment_id,
+              order_id: verifyData.order_id,
+              amount: verifyData.amount,
+              status: verifyData.status,
+            });
+          } catch (e) {
+            setError(e.message); setStatus('error');
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setLoading(false);
+            setStatus('idle');
+            toast('Payment cancelled', { icon: '⚠️' });
+          },
+        },
+        prefill: { name: 'User', email: 'user@blockmyshow.com', contact: '9999999999' },
+        theme: { color: '#31bbaf', backdrop_color: '#0a0a0a' },
+        notes: { eventId: String(event.eventId || event.id), eventTitle: event.title },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', (resp) => {
+        setError(resp.error?.description || 'Payment failed');
+        setStatus('error');
+        setLoading(false);
+      });
+      rzp.open();
+    } catch (err) {
+      setError(err.message || 'Payment error');
+      setStatus('error');
+      setLoading(false);
+    }
   };
 
   const handleClose = () => {
-    resetState();
+    setStatus('idle'); setError(''); setLoading(false);
     onClose();
-  };
-
-  const handleCardNumberChange = (e) => {
-    const value = e.target.value.replace(/\D/g, '').slice(0, 16);
-    setCardNumber(value.replace(/(\d{4})/g, '$1 ').trim());
-  };
-
-  const handleExpiryChange = (e) => {
-    const value = e.target.value.replace(/\D/g, '').slice(0, 4);
-    if (value.length >= 2) {
-      setCardExpiry(`${value.slice(0, 2)}/${value.slice(2, 4)}`);
-    } else {
-      setCardExpiry(value);
-    }
-  };
-
-  const handleCVVChange = (e) => {
-    setCardCVV(e.target.value.replace(/\D/g, '').slice(0, 3));
-  };
-
-  const validateCardDetails = () => {
-    if (!cardName.trim()) {
-      setError('Card holder name is required');
-      return false;
-    }
-    if (cardNumber.replace(/\s/g, '').length !== 16) {
-      setError('Card number must be 16 digits');
-      return false;
-    }
-    if (!cardExpiry || cardExpiry.length !== 5) {
-      setError('Expiry must be MM/YY format');
-      return false;
-    }
-    if (cardCVV.length !== 3) {
-      setError('CVV must be 3 digits');
-      return false;
-    }
-    return true;
-  };
-
-  const handleProcessPayment = async () => {
-    if (!validateCardDetails()) return;
-
-    setLoading(true);
-    setError('');
-
-    // Simulate payment processing
-    setStep(3);
-
-    try {
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Fake payment success/failure logic
-      // For testing: cards starting with 4111 succeed, others fail
-      const cardDigits = cardNumber.replace(/\s/g, '');
-      const isSuccessful = cardDigits.startsWith('4111') || cardDigits.startsWith('5555');
-
-      if (!isSuccessful) {
-        throw new Error('Test card declined. Use 4111111111111111 or 5555555555555555 for testing.');
-      }
-
-      // Generate fake transaction ID
-      const txnId = `TXN_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      setTransactionId(txnId);
-      setSuccess(true);
-      setStep(4);
-
-      toast.success('✅ Payment successful!');
-
-      // Call success callback after 2 seconds
-      setTimeout(() => {
-        if (onPaymentSuccess) {
-          onPaymentSuccess({
-            transactionId: txnId,
-            amount: amount,
-            status: 'success',
-            timestamp: new Date().toISOString(),
-          });
-        }
-        handleClose();
-      }, 2000);
-    } catch (err) {
-      setError(err.message);
-      setStep(2);
-      toast.error(err.message);
-    } finally {
-      setLoading(false);
-    }
   };
 
   if (!isOpen) return null;
 
   return (
-    <div
-      onClick={handleClose}
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'rgba(0,0,0,0.8)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-        padding: '20px',
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          background: 'var(--surface)',
-          border: '3px solid var(--border)',
-          boxShadow: '8px 8px 0 var(--border)',
-          maxWidth: '500px',
-          width: '100%',
-          borderRadius: '0px',
-          overflow: 'hidden',
-        }}
-      >
+    <div onClick={handleClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', border: '3px solid var(--border)', boxShadow: '8px 8px 0 var(--border)', maxWidth: '440px', width: '100%' }}>
+
         {/* Header */}
-        <div
-          style={{
-            padding: '18px 20px',
-            borderBottom: '3px solid var(--border)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            background: 'var(--bg)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Icon.CreditCard />
-            <h3 style={{ margin: 0, fontFamily: 'var(--font-display)', textTransform: 'uppercase', fontSize: '15px', fontWeight: 'bold' }}>
-              Secure Payment
-            </h3>
-          </div>
-          <button
-            onClick={handleClose}
-            style={{ background: 'transparent', border: 'none', color: 'var(--text)', cursor: 'pointer', padding: '4px' }}
-          >
-            <Icon.X />
-          </button>
+        <div style={{ padding: '16px 20px', borderBottom: '3px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0, fontFamily: 'Syne, sans-serif', fontSize: '15px', textTransform: 'uppercase' }}>
+            💳 Payment Gateway
+          </h3>
+          <button onClick={handleClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', fontSize: '18px' }}>✕</button>
         </div>
 
-        {/* Content */}
-        <div style={{ padding: '24px' }}>
-          
-          {/* Step 1: Review */}
-          {step === 1 && (
-            <div style={{ display: 'grid', gap: '1.5rem' }}>
-              <div style={{ padding: '12px', background: 'var(--bg)', border: '2px solid var(--border)' }}>
-                <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '0 0 8px 0', textTransform: 'uppercase', fontWeight: 'bold' }}>
-                  Order Summary
-                </p>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: 'bold' }}>
-                  <span>{event?.title}</span>
-                  <span>₹{amount}</span>
-                </div>
-                <div style={{ borderTop: '2px dashed var(--border)', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 'bold', color: 'var(--primary)' }}>
-                  <span>Total Amount</span>
-                  <span>₹{amount}</span>
-                </div>
-              </div>
-
-              <div style={{ padding: '12px', background: '#fef3c7', border: '2px solid #fbbf24', color: '#78350f' }}>
-                <p style={{ fontSize: '12px', margin: 0, fontWeight: 'bold' }}>
-                  💳 TEST CARDS:<br/>
-                  Visa: 4111 1111 1111 1111<br/>
-                  Mastercard: 5555 5555 5555 5555
-                </p>
-              </div>
-
-              <button
-                onClick={() => setStep(2)}
-                style={{
-                  padding: '12px',
-                  border: '2px solid var(--border)',
-                  background: 'var(--primary)',
-                  color: '#000',
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '13px',
-                  fontWeight: 'bold',
-                  textTransform: 'uppercase',
-                }}
-              >
-                Proceed to Payment
-              </button>
-            </div>
-          )}
-
-          {/* Step 2: Card Details */}
-          {step === 2 && (
-            <form
-              onSubmit={e => { e.preventDefault(); handleProcessPayment(); }}
-              style={{ display: 'grid', gap: '1.5rem' }}
-            >
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', textTransform: 'uppercase', color: 'var(--muted)' }}>
-                  Cardholder Name *
-                </label>
-                <input
-                  type="text"
-                  value={cardName}
-                  onChange={e => setCardName(e.target.value)}
-                  placeholder="JOHN DOE"
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    border: '2px solid var(--border)',
-                    background: 'var(--input-bg)',
-                    color: 'var(--text)',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '13px',
-                    outline: 'none',
-                    textTransform: 'uppercase',
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', textTransform: 'uppercase', color: 'var(--muted)' }}>
-                  Card Number *
-                </label>
-                <input
-                  type="text"
-                  value={cardNumber}
-                  onChange={handleCardNumberChange}
-                  placeholder="4111 1111 1111 1111"
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    border: '2px solid var(--border)',
-                    background: 'var(--input-bg)',
-                    color: 'var(--text)',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '13px',
-                    outline: 'none',
-                    letterSpacing: '2px',
-                  }}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', textTransform: 'uppercase', color: 'var(--muted)' }}>
-                    Expiry (MM/YY) *
-                  </label>
-                  <input
-                    type="text"
-                    value={cardExpiry}
-                    onChange={handleExpiryChange}
-                    placeholder="12/25"
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '2px solid var(--border)',
-                      background: 'var(--input-bg)',
-                      color: 'var(--text)',
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '13px',
-                      outline: 'none',
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', textTransform: 'uppercase', color: 'var(--muted)' }}>
-                    CVV *
-                  </label>
-                  <input
-                    type="text"
-                    value={cardCVV}
-                    onChange={handleCVVChange}
-                    placeholder="123"
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '2px solid var(--border)',
-                      background: 'var(--input-bg)',
-                      color: 'var(--text)',
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '13px',
-                      outline: 'none',
-                    }}
-                  />
-                </div>
-              </div>
-
-              {error && (
-                <div style={{ padding: '12px', background: '#fee2e2', border: '2px solid #fca5a5', color: '#991b1b', fontSize: '12px', fontWeight: 'bold' }}>
-                  {error}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                style={{
-                  padding: '12px',
-                  border: '2px solid var(--border)',
-                  background: loading ? 'var(--surface)' : 'var(--primary)',
-                  color: loading ? 'var(--muted)' : '#000',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '13px',
-                  fontWeight: 'bold',
-                  textTransform: 'uppercase',
-                  opacity: loading ? 0.6 : 1,
-                }}
-              >
-                {loading ? '⏳ Processing...' : '💳 Pay ₹' + amount}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                disabled={loading}
-                style={{
-                  padding: '12px',
-                  border: '2px solid var(--border)',
-                  background: 'var(--surface)',
-                  color: 'var(--text)',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '13px',
-                  fontWeight: 'bold',
-                  textTransform: 'uppercase',
-                  opacity: loading ? 0.6 : 1,
-                }}
-              >
-                ← Back
-              </button>
-            </form>
-          )}
-
-          {/* Step 3: Processing */}
-          {step === 3 && (
-            <div style={{ textAlign: 'center', padding: '2rem 0' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '1rem', animation: 'spin 1s linear infinite' }}>
-                💫
-              </div>
-              <p style={{ fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Processing Payment...</p>
-              <p style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '0.5rem' }}>Please wait while we verify your card</p>
-            </div>
-          )}
-
-          {/* Step 4: Success */}
-          {step === 4 && success && (
-            <div style={{ textAlign: 'center', padding: '2rem 0', display: 'grid', gap: '1rem' }}>
-              <div style={{ fontSize: '3rem' }}>✅</div>
-              <div>
-                <p style={{ fontSize: '14px', fontWeight: 'bold', margin: 0, marginBottom: '0.5rem' }}>Payment Successful!</p>
-                <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0, marginBottom: '1rem' }}>
-                  Transaction ID: <strong>{transactionId}</strong>
-                </p>
-              </div>
-              <div style={{ padding: '12px', background: 'var(--bg)', border: '2px dashed var(--border)', fontSize: '11px', color: 'var(--muted)' }}>
-                Your ticket is being confirmed. You will be redirected shortly...
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer Info */}
-        {step !== 4 && (
-          <div style={{ padding: '12px 24px', background: 'var(--bg)', borderTop: '2px solid var(--border)', fontSize: '11px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Icon.CheckCircle style={{ minWidth: '16px' }} />
-            Your payment is encrypted and secure
+        {/* Event info bar */}
+        {event && (
+          <div style={{ padding: '10px 20px', borderBottom: '2px solid var(--border)', background: 'var(--bg)', display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontFamily: 'Space Mono, monospace' }}>
+            <span style={{ color: 'var(--text)', fontWeight: 'bold' }}>{event.title}</span>
+            <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>₹{Number(event.price).toLocaleString('en-IN')}</span>
           </div>
         )}
 
-        <style>{`
-          @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
+        {/* Body */}
+        <div style={{ padding: '24px' }}>
+          {error && (
+            <div style={{ background: '#1a0000', color: '#ff4444', padding: '10px 14px', marginBottom: '16px', fontSize: '13px', border: '2px solid #ff4444', fontFamily: 'Space Mono, monospace' }}>
+              ⚠ {error}
+            </div>
+          )}
+
+          {/* Status indicator */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '12px 0' }}>
+            {/* Progress steps */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0', marginBottom: '8px' }}>
+              {[
+                { key: 'creating', label: 'ORDER' },
+                { key: 'paying', label: 'PAY' },
+                { key: 'verifying', label: 'VERIFY' },
+              ].map((s, i) => {
+                const steps = ['creating', 'paying', 'verifying', 'done'];
+                const currentIdx = steps.indexOf(status);
+                const thisIdx = steps.indexOf(s.key);
+                const isDone = currentIdx > thisIdx;
+                const isActive = currentIdx === thisIdx;
+                return (
+                  <div key={s.key} style={{ display: 'flex', alignItems: 'center' }}>
+                    <div style={{
+                      width: '28px', height: '28px', border: '2px solid var(--border)',
+                      background: isDone ? 'var(--primary)' : isActive ? 'var(--border)' : 'transparent',
+                      color: isDone ? '#000' : isActive ? 'var(--surface)' : 'var(--muted)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '10px', fontWeight: 'bold', fontFamily: 'Space Mono, monospace',
+                    }}>
+                      {isDone ? '✓' : i + 1}
+                    </div>
+                    <div style={{ fontSize: '9px', color: isActive ? 'var(--text)' : 'var(--muted)', marginLeft: '4px', fontFamily: 'Space Mono, monospace' }}>
+                      {s.label}
+                    </div>
+                    {i < 2 && <div style={{ width: '20px', height: '2px', background: isDone ? 'var(--primary)' : 'var(--border)', margin: '0 6px' }} />}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Status messages */}
+            {status === 'idle' && (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '32px', marginBottom: '8px' }}>💳</div>
+                <p style={{ color: 'var(--muted)', fontSize: '13px', fontFamily: 'Space Mono, monospace', margin: 0 }}>
+                  Preparing Razorpay checkout…
+                </p>
+              </div>
+            )}
+            {status === 'creating' && (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '28px', marginBottom: '8px', animation: 'pulse 1s infinite' }}>⏳</div>
+                <p style={{ color: 'var(--primary)', fontSize: '13px', fontFamily: 'Space Mono, monospace', margin: 0, fontWeight: 'bold' }}>
+                  Creating payment order…
+                </p>
+              </div>
+            )}
+            {status === 'paying' && (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>🔒</div>
+                <p style={{ color: 'var(--primary)', fontSize: '13px', fontFamily: 'Space Mono, monospace', margin: 0, fontWeight: 'bold' }}>
+                  Razorpay window open — complete payment there
+                </p>
+                <p style={{ color: 'var(--muted)', fontSize: '11px', fontFamily: 'Space Mono, monospace', margin: '8px 0 0' }}>
+                  Test card: 4111 1111 1111 1111 · Expiry: any future · CVV: any 3 digits
+                </p>
+              </div>
+            )}
+            {status === 'verifying' && (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '28px', marginBottom: '8px', animation: 'pulse 1s infinite' }}>🔐</div>
+                <p style={{ color: '#f59e0b', fontSize: '13px', fontFamily: 'Space Mono, monospace', margin: 0, fontWeight: 'bold' }}>
+                  Verifying payment signature…
+                </p>
+              </div>
+            )}
+            {status === 'done' && (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ width: '56px', height: '56px', margin: '0 auto 12px', background: 'var(--primary)', border: '3px solid var(--border)', boxShadow: '4px 4px 0 var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px' }}>✓</div>
+                <p style={{ color: 'var(--primary)', fontSize: '15px', fontFamily: 'Syne, sans-serif', margin: 0, fontWeight: 'bold', textTransform: 'uppercase' }}>
+                  Payment Verified!
+                </p>
+              </div>
+            )}
+            {status === 'error' && (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '32px', marginBottom: '8px' }}>❌</div>
+                <button onClick={handlePayment} className="brutal-btn" style={{ padding: '12px 24px', fontSize: '13px', marginTop: '8px' }}>
+                  Retry Payment
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Manual trigger if auto didn't fire */}
+          {status === 'idle' && !loading && (
+            <button onClick={handlePayment} className="brutal-btn" style={{ width: '100%', padding: '14px', fontSize: '13px', marginTop: '8px' }}>
+              💳 Open Razorpay Checkout
+            </button>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
+            <button onClick={handleClose} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontFamily: 'Space Mono, monospace', fontSize: '12px', textDecoration: 'underline' }}>
+              Cancel & go back
+            </button>
+          </div>
+        </div>
       </div>
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
     </div>
   );
 };

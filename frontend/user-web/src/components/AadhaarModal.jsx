@@ -65,24 +65,7 @@ const AadhaarModal = ({ isOpen, onClose, onBookingComplete, event }) => {
     setLoading(true);
     setError('');
     try {
-      // First, ensure identity is added to system (required for ticket purchase)
-      const addIdentityRes = await fetch(`${API_BASE}/identity/add`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          identity_id: aadhaarId,
-          // Backend will validate identity_id against Aadhaar registry
-        }),
-      });
-      const addIdentityData = await addIdentityRes.json();
-      
-      // Even if identity add fails with 404 (not in registry), continue to ticket request
-      // Backend will check identity again and send appropriate error
-      
-      // Now request OTP for ticket purchase
+      // Request OTP for ticket purchase - backend will add identity to table if needed
       const res = await fetch(`${API_BASE}/tickets/request`, {
         method: 'POST',
         headers: {
@@ -97,10 +80,8 @@ const AadhaarModal = ({ isOpen, onClose, onBookingComplete, event }) => {
       const data = await res.json();
       if (!data.success) throw new Error(data.message || 'Failed to send OTP');
 
-      // Call the callback with identity data to proceed to payment
-      if (onBookingComplete) {
-        onBookingComplete({ identity_id: aadhaarId });
-      }
+      // Move to payment step
+      setStep(2);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -245,6 +226,87 @@ const AadhaarModal = ({ isOpen, onClose, onBookingComplete, event }) => {
                 }}
               >
                 {loading ? 'Sending OTP…' : 'Send OTP →'}
+              </button>
+            </div>
+          )}
+
+          {/* ── STEP 2: Payment ── */}
+          {step === 2 && (
+            <div>
+              <h4 style={{ margin: '0 0 8px', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                Step 2: Complete Payment
+              </h4>
+              <p style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '18px', lineHeight: 1.5 }}>
+                Proceed with payment using Razorpay to complete your ticket booking.
+              </p>
+
+              <div style={{
+                background: 'var(--bg)',
+                border: '2px solid var(--border)',
+                padding: '14px',
+                marginBottom: '18px',
+              }}>
+                <p style={{ margin: '0 0 8px 0', fontSize: '12px', color: 'var(--muted)', textTransform: 'uppercase' }}>Order Summary</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px', fontWeight: 'bold' }}>
+                  <span>{event?.title}</span>
+                  <span>₹{event?.price}</span>
+                </div>
+                <div style={{
+                  borderTop: '2px dashed var(--border)',
+                  paddingTop: '8px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  color: 'var(--primary)',
+                }}>
+                  <span>Total</span>
+                  <span>₹{event?.price}</span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  if (onBookingComplete) {
+                    onBookingComplete({ 
+                      identity_id: aadhaarId,
+                      event_id: event?.eventId ?? event?.id,
+                      amount: event?.price
+                    });
+                  }
+                  // Reset modal state but DON'T call onClose (would null bookingEvent)
+                  reset();
+                }}
+                className="brutal-btn"
+                disabled={loading}
+                style={{
+                  width: '100%', padding: '13px',
+                  opacity: loading ? 0.5 : 1,
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  fontSize: '13px',
+                }}
+              >
+                {loading ? 'Processing…' : '💳 Proceed to Payment →'}
+              </button>
+
+              <button
+                onClick={() => setStep(1)}
+                disabled={loading}
+                style={{
+                  width: '100%', padding: '13px',
+                  marginTop: '10px',
+                  border: '2px solid var(--border)',
+                  background: 'var(--surface)',
+                  color: 'var(--text)',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  fontFamily: 'Space Mono, monospace',
+                  fontSize: '13px',
+                  fontWeight: 'bold',
+                  textTransform: 'uppercase',
+                  opacity: loading ? 0.5 : 1,
+                }}
+              >
+                ← Back
               </button>
             </div>
           )}
