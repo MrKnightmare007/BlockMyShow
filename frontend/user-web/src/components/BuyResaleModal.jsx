@@ -166,11 +166,6 @@ const BuyResaleModal = ({ listing, token, onClose, onSuccess }) => {
                 maxLength={12}
                 style={{ width: '100%', padding: '12px', marginBottom: '12px', border: '2px solid var(--border)', background: 'var(--input-bg)', color: 'var(--text)', fontFamily: 'Space Mono, monospace', fontSize: '18px', letterSpacing: '4px', textAlign: 'center', boxSizing: 'border-box' }}
               />
-              <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '16px', padding: '10px 14px', border: '2px dashed var(--border)', background: 'var(--bg)', fontFamily: 'Space Mono, monospace', lineHeight: 1.7 }}>
-                <strong style={{ color: 'var(--text)' }}>For testing:</strong><br />
-                • <span style={{ cursor: 'pointer', color: 'var(--primary)', textDecoration: 'underline' }} onClick={() => setBuyerIdentity('111111111111')}>111111111111</span> — Rajesh Kumar<br />
-                • <span style={{ cursor: 'pointer', color: 'var(--primary)', textDecoration: 'underline' }} onClick={() => setBuyerIdentity('222222222222')}>222222222222</span> — Priya Singh
-              </div>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button onClick={onClose} style={{ flex: 1, padding: '12px', background: 'transparent', border: '2px solid var(--border)', color: 'var(--muted)', cursor: 'pointer', fontFamily: 'Space Mono, monospace', fontSize: '13px' }}>Cancel</button>
                 <button onClick={handleIdentityNext} disabled={buyerIdentity.length < 6} className="brutal-btn"

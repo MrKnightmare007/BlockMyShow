@@ -227,11 +227,6 @@ const PaymentGatewayModal = ({ isOpen, onClose, event, onPaymentSuccess }) => {
                 maxLength={12}
                 style={{ width: '100%', padding: '12px', marginBottom: '12px', border: '2px solid var(--border)', background: 'var(--input-bg)', color: 'var(--text)', fontFamily: 'Space Mono, monospace', fontSize: '18px', letterSpacing: '4px', textAlign: 'center', boxSizing: 'border-box' }}
               />
-              <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '16px', padding: '10px 14px', border: '2px dashed var(--border)', background: 'var(--bg)', fontFamily: 'Space Mono, monospace', lineHeight: 1.7 }}>
-                <strong style={{ color: 'var(--text)' }}>Test IDs:</strong><br />
-                • <span style={{ cursor: 'pointer', color: 'var(--primary)', textDecoration: 'underline' }} onClick={() => setIdentityId('111111111111')}>111111111111</span> — Rajesh Kumar<br />
-                • <span style={{ cursor: 'pointer', color: 'var(--primary)', textDecoration: 'underline' }} onClick={() => setIdentityId('222222222222')}>222222222222</span> — Priya Singh
-              </div>
               <button
                 onClick={handleCreateOrder}
                 disabled={loading || identityId.length < 12}
