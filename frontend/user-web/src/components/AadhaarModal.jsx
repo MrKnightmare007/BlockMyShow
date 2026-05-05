@@ -274,8 +274,7 @@ const AadhaarModal = ({ isOpen, onClose, onBookingComplete, event }) => {
                       amount: event?.price
                     });
                   }
-                  // Reset modal state but DON'T call onClose (would null bookingEvent)
-                  reset();
+                  handleClose();
                 }}
                 className="brutal-btn"
                 disabled={loading}

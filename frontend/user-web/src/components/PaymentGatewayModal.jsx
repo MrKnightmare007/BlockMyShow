@@ -35,14 +35,12 @@ const PaymentGatewayModal = ({ isOpen, onClose, event, onPaymentSuccess }) => {
     setLoading(true); setError(''); setStatus('creating');
 
     try {
-      // Step 1: Create order
+      // Step 1: Create order — only send eventId, backend fetches price from blockchain
       const createRes = await fetch(`${API_BASE}/payment/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
-          amount: parseFloat(event.price),
           eventId: event.eventId || event.id,
-          eventTitle: event.title,
         }),
       });
       const orderData = await createRes.json();
@@ -53,12 +51,13 @@ const PaymentGatewayModal = ({ isOpen, onClose, event, onPaymentSuccess }) => {
       // Step 2: Open Razorpay checkout
       if (!window.Razorpay) throw new Error('Razorpay SDK not loaded. Please refresh and try again.');
 
+      const eventTitle = orderData.event?.title || event.title;
       const options = {
         key: orderData.key_id,
         amount: orderData.amount,
         currency: orderData.currency,
         name: 'BlockMyShow',
-        description: `Ticket: ${event.title}`,
+        description: `Ticket: ${eventTitle}`,
         order_id: orderData.order_id,
         handler: async (response) => {
           // Step 3: Verify
