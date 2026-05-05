@@ -188,17 +188,22 @@ const myTickets = async (req, res) => {
       try {
         const ticketInfo = await getTicketInfo(tokenId)
         const eventInfo = await getEvent(ticketInfo.eventId)
-
+        console.log("[myTickets] Ticket info:", ticketInfo)
         tickets.push({
           token_id: tokenId,
           event_id: ticketInfo.eventId,
           used: ticketInfo.used,
-          commitment: ticketInfo.commitment,
+          listPrice: ticketInfo.listPrice,
+          salePrice: ticketInfo.salePrice,
+          isListed: ticketInfo.isListed,
+          // commitment: ticketInfo.commitment,
+
           event: {
             title: eventInfo.title,
             venue: eventInfo.venue,
             date: eventInfo.date,
-            price: eventInfo.price
+            price: eventInfo.price,
+            metadataURI:eventInfo.metadataURI
           }
         })
       } catch (err) {

@@ -53,16 +53,18 @@ const Icon = {
 };
 
 const Navbar = () => {
-  const { user, walletAddress, logout } = useAuth();
+  const { user, walletAddress, logout, isAdmin } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { selectedCity, setSelectedCity, cities, detectLocation, isAutoDetecting } = useAppLocation();
   const location = useLocation();
 
-  const navItems = [
-    { path: '/', label: 'Events', icon: Icon.Home },
-    { path: '/tickets', label: 'My Tickets', icon: Icon.Ticket },
-    { path: '/profile', label: 'Profile', icon: Icon.User },
-  ];
+  const navItems = isAdmin
+    ? [{ path: '/', label: 'Manage Events', icon: Icon.Home }]
+    : [
+        { path: '/', label: 'Events', icon: Icon.Home },
+        { path: '/tickets', label: 'My Tickets', icon: Icon.Ticket },
+        { path: '/profile', label: 'Profile', icon: Icon.User },
+      ];
 
   return (
     <nav style={{ 
@@ -95,73 +97,75 @@ const Navbar = () => {
           BlockMyShow
         </Link>
 
-        {/* Location Selector */}
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '8px', 
-            padding: '6px 12px', 
-            border: '2px solid var(--border)',
-            background: 'var(--input-bg)',
-            cursor: 'pointer',
-            fontSize: '12px',
-            fontWeight: 'bold'
-          }}>
-            <Icon.MapPin />
-            <select
-              value={selectedCity}
-              onChange={(e) => setSelectedCity(e.target.value)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text)',
-                fontFamily: 'inherit',
-                fontSize: 'inherit',
-                fontWeight: 'inherit',
-                outline: 'none',
-                cursor: 'pointer',
-                paddingRight: '4px',
-                appearance: 'none', // Remove default arrow for custom look if desired
-                WebkitAppearance: 'none'
-              }}
-            >
-              {cities.map(city => (
-                <option 
-                  key={city} 
-                  value={city}
-                  style={{
-                    background: 'var(--surface)',
-                    color: 'var(--text)',
-                    padding: '10px'
-                  }}
-                >
-                  {city}
-                </option>
-              ))}
-            </select>
-            <div style={{ pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
-              <Icon.ChevronDown />
+        {/* Location Selector - only for users */}
+        {!isAdmin && (
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px', 
+              padding: '6px 12px', 
+              border: '2px solid var(--border)',
+              background: 'var(--input-bg)',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 'bold'
+            }}>
+              <Icon.MapPin />
+              <select
+                value={selectedCity}
+                onChange={(e) => setSelectedCity(e.target.value)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text)',
+                  fontFamily: 'inherit',
+                  fontSize: 'inherit',
+                  fontWeight: 'inherit',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  paddingRight: '4px',
+                  appearance: 'none',
+                  WebkitAppearance: 'none'
+                }}
+              >
+                {cities.map(city => (
+                  <option 
+                    key={city} 
+                    value={city}
+                    style={{
+                      background: 'var(--surface)',
+                      color: 'var(--text)',
+                      padding: '10px'
+                    }}
+                  >
+                    {city}
+                  </option>
+                ))}
+              </select>
+              <div style={{ pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
+                <Icon.ChevronDown />
+              </div>
+              <button 
+                onClick={detectLocation} 
+                title="Auto-detect location"
+                style={{ 
+                  background: 'transparent', 
+                  border: 'none', 
+                  color: isAutoDetecting ? 'var(--primary)' : 'var(--muted)',
+                  cursor: 'pointer',
+                  padding: '2px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  marginLeft: '8px',
+                  fontSize: '14px'
+                }}
+              >
+                {isAutoDetecting ? '⌛' : '🎯'}
+              </button>
             </div>
-            <button 
-              onClick={detectLocation} 
-              title="Auto-detect location"
-              style={{ 
-                background: 'transparent', 
-                border: 'none', 
-                color: isAutoDetecting ? 'var(--primary)' : 'var(--muted)',
-                cursor: 'pointer',
-                padding: '2px',
-                display: 'flex',
-                alignItems: 'center',
-                marginLeft: '8px',
-                fontSize: '14px'
-              }}
-            >
-              {isAutoDetecting ? '⌛' : '🎯'}
-            </button>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Navigation Items */}

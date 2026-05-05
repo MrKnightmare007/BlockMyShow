@@ -7,6 +7,7 @@ import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
 import ProfilePage from './pages/ProfilePage';
 import TicketsPage from './pages/TicketsPage';
+import ManageEventsPage from './pages/ManageEventsPage';
 import Navbar from './components/Navbar';
 import Loader from './components/Loader';
 import { useAuth } from './context/AuthContext';
@@ -14,7 +15,7 @@ import './App.css';
 
 // Main App Content with Routing
 const AppContent = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, isAdmin } = useAuth();
 
   if (isLoading) {
     return <Loader fullScreen text="Loading BlockMyShow..." />;
@@ -31,10 +32,22 @@ const AppContent = () => {
         <>
           <Navbar />
           <Routes>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/tickets" element={<TicketsPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            {isAdmin ? (
+              // Admin routes - only event management
+              <>
+                <Route path="/" element={<ManageEventsPage />} />
+                <Route path="/manage-events" element={<ManageEventsPage />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </>
+            ) : (
+              // User routes
+              <>
+                <Route path="/" element={<DashboardPage />} />
+                <Route path="/tickets" element={<TicketsPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </>
+            )}
           </Routes>
         </>
       ) : (

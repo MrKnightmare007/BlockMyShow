@@ -28,11 +28,7 @@ const Icon = {
   ),
 };
 
-// Mock Aadhaar registry — kept for the UI preview card only (backend has its own registry)
-const MOCK_AADHAAR_REGISTRY = {
-  '111111111111': { name: 'RAJESH KUMAR', phone: '+91-9876543210', color: '#4a90e2' },
-  '222222222222': { name: 'PRIYA SINGH',  phone: '+91-8765432109', color: '#ec4899' },
-};
+
 
 /**
  * AadhaarModal
@@ -48,17 +44,14 @@ const MOCK_AADHAAR_REGISTRY = {
 const AadhaarModal = ({ isOpen, onClose, onBookingComplete, event }) => {
   const { token } = useAuth();
 
-  const [step, setStep]           = useState(1);   // 1: Aadhaar input, 2: OTP, 3: Success
+  const [step, setStep]           = useState(1);   // 1: Aadhaar input, 2: Payment
   const [aadhaarId, setAadhaarId] = useState('');
-  const [otp, setOtp]             = useState('');
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
-  const [preview, setPreview]     = useState(null); // local mock preview only
-  const [result, setResult]       = useState(null);
 
   const reset = () => {
-    setStep(1); setAadhaarId(''); setOtp('');
-    setLoading(false); setError(''); setPreview(null); setResult(null);
+    setStep(1); setAadhaarId('');
+    setLoading(false); setError('');
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -104,43 +97,10 @@ const AadhaarModal = ({ isOpen, onClose, onBookingComplete, event }) => {
       const data = await res.json();
       if (!data.success) throw new Error(data.message || 'Failed to send OTP');
 
-      // Show a local identity preview if Aadhaar is in mock registry
-      setPreview(MOCK_AADHAAR_REGISTRY[aadhaarId] || null);
-      setStep(2);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ── Step 2: POST /api/tickets/confirm ──────────────────────────────────────
-  const handleConfirmOTP = async () => {
-    if (otp.length !== 6) {
-      setError('Please enter the 6-digit OTP');
-      return;
-    }
-    setLoading(true);
-    setError('');
-    try {
-      const res = await fetch(`${API_BASE}/tickets/confirm`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          event_id: event?.eventId ?? event?.id,
-          identity_id: aadhaarId,
-          otp,
-        }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message || 'Invalid OTP');
-
-      setResult(data);
-      setStep(3);
-      if (onBookingComplete) onBookingComplete(data);
+      // Call the callback with identity data to proceed to payment
+      if (onBookingComplete) {
+        onBookingComplete({ identity_id: aadhaarId });
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -205,7 +165,7 @@ const AadhaarModal = ({ isOpen, onClose, onBookingComplete, event }) => {
 
         {/* ── Step Progress ── */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '18px 20px 0' }}>
-          {[1, 2, 3].map((s, i) => (
+          {[1, 2].map((s, i) => (
             <div key={s} style={{ display: 'flex', alignItems: 'center' }}>
               <div style={{
                 width: '28px', height: '28px',
@@ -218,14 +178,14 @@ const AadhaarModal = ({ isOpen, onClose, onBookingComplete, event }) => {
               }}>
                 {step > s ? '✓' : s}
               </div>
-              {i < 2 && (
+              {i < 1 && (
                 <div style={{ width: '40px', height: '2px', background: step > s + 0.5 ? 'var(--primary)' : 'var(--border)', margin: '0 6px' }} />
               )}
             </div>
           ))}
         </div>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '44px', fontSize: '10px', color: 'var(--muted)', padding: '4px 20px 0', fontFamily: 'Space Mono, monospace' }}>
-          <span>AADHAAR</span><span>OTP</span><span>DONE</span>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '56px', fontSize: '10px', color: 'var(--muted)', padding: '4px 20px 0', fontFamily: 'Space Mono, monospace' }}>
+          <span>IDENTITY</span><span>PAYMENT</span>
         </div>
 
         {/* ── Body ── */}
@@ -273,24 +233,6 @@ const AadhaarModal = ({ isOpen, onClose, onBookingComplete, event }) => {
                 }}
               />
 
-              {/* Mock hint */}
-              <div style={{
-                fontSize: '12px', color: 'var(--muted)',
-                marginBottom: '18px', padding: '10px 14px',
-                border: '2px dashed var(--border)', background: 'var(--bg)',
-                fontFamily: 'Space Mono, monospace', lineHeight: 1.7,
-              }}>
-                <strong style={{ color: 'var(--text)' }}>For testing, use:</strong><br />
-                • <span
-                    style={{ cursor: 'pointer', color: 'var(--primary)', textDecoration: 'underline' }}
-                    onClick={() => setAadhaarId('111111111111')}
-                  >111111111111</span> — Rajesh Kumar<br />
-                • <span
-                    style={{ cursor: 'pointer', color: 'var(--primary)', textDecoration: 'underline' }}
-                    onClick={() => setAadhaarId('222222222222')}
-                  >222222222222</span> — Priya Singh
-              </div>
-
               <button
                 onClick={handleRequestOTP}
                 disabled={loading || aadhaarId.length !== 12}
@@ -303,143 +245,6 @@ const AadhaarModal = ({ isOpen, onClose, onBookingComplete, event }) => {
                 }}
               >
                 {loading ? 'Sending OTP…' : 'Send OTP →'}
-              </button>
-            </div>
-          )}
-
-          {/* ── STEP 2: OTP input ── */}
-          {step === 2 && (
-            <div>
-              <h4 style={{ margin: '0 0 8px', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                Step 2: Enter OTP
-              </h4>
-
-              {/* Identity preview card */}
-              {preview ? (
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: '14px',
-                  padding: '12px 16px', marginBottom: '18px',
-                  border: '2px solid var(--border)', background: 'var(--bg)',
-                }}>
-                  <div style={{
-                    width: '44px', height: '44px', flexShrink: 0,
-                    background: preview.color, display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', fontWeight: 'bold', color: '#fff',
-                    fontSize: '18px', border: '2px solid var(--border)',
-                  }}>
-                    {preview.name[0]}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 'bold', fontFamily: 'Space Mono, monospace', fontSize: '14px' }}>{preview.name}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{preview.phone}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>ID: {aadhaarId}</div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{
-                  padding: '12px 16px', marginBottom: '18px',
-                  border: '2px solid var(--border)', background: 'var(--bg)',
-                  fontSize: '13px', color: 'var(--muted)', fontFamily: 'Space Mono, monospace',
-                }}>
-                  OTP sent to phone linked with <strong style={{ color: 'var(--text)' }}>{aadhaarId}</strong>
-                </div>
-              )}
-
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="• • • • • •"
-                value={otp}
-                onChange={e => {
-                  setOtp(e.target.value.replace(/\D/g, '').slice(0, 6));
-                  setError('');
-                }}
-                maxLength={6}
-                autoFocus
-                style={{
-                  width: '100%', padding: '14px',
-                  border: '2px solid var(--border)', borderRadius: '0',
-                  fontSize: '28px', fontFamily: 'Space Mono, monospace',
-                  letterSpacing: '10px', textAlign: 'center',
-                  background: 'var(--input-bg)', color: 'var(--text)',
-                  marginBottom: '12px', boxSizing: 'border-box',
-                }}
-              />
-
-              <div style={{
-                fontSize: '12px', color: 'var(--muted)', textAlign: 'center',
-                marginBottom: '18px', fontFamily: 'Space Mono, monospace',
-              }}>
-                Testing OTP: <strong style={{ color: 'var(--primary)' }}>123456</strong>
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  onClick={() => { setStep(1); setOtp(''); setError(''); }}
-                  style={{
-                    flex: 1, padding: '12px',
-                    background: 'var(--bg)', color: 'var(--text)',
-                    border: '2px solid var(--border)', cursor: 'pointer',
-                    fontFamily: 'Space Mono, monospace', fontSize: '13px',
-                    boxShadow: '3px 3px 0 var(--border)',
-                  }}
-                >
-                  ← Back
-                </button>
-                <button
-                  onClick={handleConfirmOTP}
-                  disabled={loading || otp.length !== 6}
-                  className="brutal-btn"
-                  style={{
-                    flex: 2, padding: '12px', fontSize: '13px',
-                    opacity: (loading || otp.length !== 6) ? 0.5 : 1,
-                    cursor: (loading || otp.length !== 6) ? 'not-allowed' : 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                  }}
-                >
-                  {loading ? 'Confirming…' : <><Icon.CheckCircle /> Confirm & Mint Ticket</>}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ── STEP 3: Success ── */}
-          {step === 3 && (
-            <div style={{ textAlign: 'center', padding: '10px 0' }}>
-              <div style={{
-                width: '72px', height: '72px', margin: '0 auto 20px',
-                background: 'var(--primary)', border: '3px solid var(--border)',
-                boxShadow: '4px 4px 0 var(--border)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#000',
-              }}>
-                <Icon.Ticket />
-              </div>
-              <h3 style={{ fontFamily: 'Syne, sans-serif', textTransform: 'uppercase', fontSize: '20px', margin: '0 0 10px', color: 'var(--primary)' }}>
-                Ticket Booked!
-              </h3>
-              <p style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '20px', fontFamily: 'Space Mono, monospace', lineHeight: 1.6 }}>
-                Your NFT ticket has been minted to your wallet.<br />
-                {result?.token_id !== undefined && (
-                  <span>Token ID: <strong style={{ color: 'var(--text)' }}>#{result.token_id}</strong></span>
-                )}
-              </p>
-              <div style={{
-                background: 'var(--bg)', border: '2px solid var(--primary)',
-                padding: '12px', marginBottom: '20px',
-                fontSize: '12px', color: 'var(--muted)', fontFamily: 'Space Mono, monospace',
-                textAlign: 'left', lineHeight: 1.8,
-              }}>
-                <div>🎫 Event: <strong style={{ color: 'var(--text)' }}>{event?.title}</strong></div>
-                <div>📍 Venue: <strong style={{ color: 'var(--text)' }}>{event?.venue}</strong></div>
-                <div>🆔 Identity: <strong style={{ color: 'var(--text)' }}>{aadhaarId}</strong></div>
-              </div>
-              <button
-                onClick={handleClose}
-                className="brutal-btn"
-                style={{ width: '100%', padding: '13px', fontSize: '13px' }}
-              >
-                View My Tickets →
               </button>
             </div>
           )}

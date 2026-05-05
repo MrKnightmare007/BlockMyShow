@@ -1,4 +1,5 @@
 const { ethers } = require('ethers')
+const { SafelistContextImpl } = require('twilio/lib/rest/verify/v2/safelist')
 
 // Updated ABI for ProofPass contract with resale support
 const TICKET_ABI = [
@@ -1294,7 +1295,8 @@ const getTicketInfo = async (tokenId) => {
       commitment: ticket.commitment,
       used: ticket.used,
       isListed: ticket.isListed,
-      listPrice: Number(ticket.listPrice)
+      listPrice: Number(ticket.listPrice),
+      salePrice: Number(ticket.salePrice)
     }
   } catch (err) {
     throw new Error(`Failed to fetch ticket info: ${err.message}`)

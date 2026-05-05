@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import AadhaarModal from '../components/AadhaarModal';
+import PaymentGatewayModal from '../components/PaymentGatewayModal';
+import OTPVerificationModal from '../components/OTPVerificationModal';
 import EventCard from '../components/EventCard';
 import { useLocation as useAppLocation } from '../context/LocationContext';
 import { useCurrency, CRYPTO_CONFIG } from '../context/CurrencyContext';
@@ -243,9 +245,11 @@ const DashboardPage = () => {
   const [priceRange, setPriceRange] = useState({ min: 0, max: 100000 });
   const [dateFilter, setDateFilter] = useState('All');
   const [marketType, setMarketType] = useState('Official');
-  const [ticketQuantity, setTicketQuantity] = useState(1);
   const [showAadhaarModal, setShowAadhaarModal] = useState(false);
   const [bookingEvent, setBookingEvent] = useState(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showOTPModal, setShowOTPModal] = useState(false);
+  const [verifiedIdentity, setVerifiedIdentity] = useState(null);
 
   // Fetch real events and resale listings on mount
   useEffect(() => {
@@ -347,15 +351,32 @@ const DashboardPage = () => {
     setShowAadhaarModal(true);
   };
 
-  const handleBookingComplete = (result) => {
-    toast.success(
-      result?.token_id !== undefined
-        ? `🎫 Ticket minted! Token #${result.token_id}`
-        : 'Ticket booked successfully!',
-      { duration: 5000 }
-    );
+  const handleIdentityVerified = (identityData) => {
+    // Store verified identity and move to payment
+    setVerifiedIdentity(identityData?.identity_id);
     setShowAadhaarModal(false);
+    setShowPaymentModal(true);
+  };
+
+  const handlePaymentSuccess = async (paymentData) => {
+    // After payment, show OTP verification modal
+    if (!bookingEvent || !verifiedIdentity) {
+      toast.error('❌ Missing booking details');
+      return;
+    }
+
+    // Close payment modal and open OTP modal
+    setShowPaymentModal(false);
+    setShowOTPModal(true);
+    toast.success('✅ Payment confirmed! Please verify OTP to complete booking.', { duration: 3000 });
+  };
+
+  const handleOTPVerified = (ticketData) => {
+    // After OTP verification, ticket is minted
+    // Reset all states
+    setShowOTPModal(false);
     setBookingEvent(null);
+    setVerifiedIdentity(null);
     setSelectedEvent(null);
   };
 
@@ -615,59 +636,35 @@ const DashboardPage = () => {
                   </div>
                 </div>
 
-                {/* Quantity Selector */}
-                <div style={{ gridColumn: 'span 2' }}>
-                  <div style={{ color: 'var(--muted)', marginBottom: '8px', textTransform: 'uppercase', fontWeight: 'bold' }}>
-                    Select Quantity (Max {selectedEvent.isResale ? 1 : 5})
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <div style={{ display: 'flex', border: '3px solid var(--border)', background: 'var(--bg)' }}>
-                      <button 
-                        onClick={() => setTicketQuantity(Math.max(1, ticketQuantity - 1))}
-                        style={{ padding: '8px 20px', background: 'transparent', border: 'none', color: 'var(--text)', cursor: 'pointer', fontWeight: 'bold', fontSize: '20px' }}
-                      >-</button>
-                      <div style={{ padding: '8px 20px', borderLeft: '3px solid var(--border)', borderRight: '3px solid var(--border)', fontWeight: 'bold', minWidth: '50px', textAlign: 'center', fontSize: '18px' }}>
-                        {ticketQuantity}
-                      </div>
-                      <button 
-                        onClick={() => setTicketQuantity(Math.min(selectedEvent.isResale ? 1 : 5, ticketQuantity + 1))}
-                        style={{ padding: '8px 20px', background: 'transparent', border: 'none', color: 'var(--text)', cursor: 'pointer', fontWeight: 'bold', fontSize: '20px' }}
-                      >+</button>
-                    </div>
-                    <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 'bold' }}>
-                      ₹{(selectedEvent.price * ticketQuantity).toLocaleString()} TOTAL
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Book Button */}
-              <button 
-                onClick={() => {
-                  const maxQty = selectedEvent.isResale ? 1 : (selectedEvent.totalTickets - selectedEvent.ticketsMinted);
-                  if (maxQty === 0) {
-                    toast.success('Joined Waitlist! We will notify you when a resale ticket is available.', {
-                      icon: '🔔',
-                      style: { border: '2px solid var(--primary)', background: 'var(--bg)', color: 'var(--text)' }
-                    });
-                  } else {
-                    handleBookTicket();
+                {/* Book Button */}
+                <button 
+                  onClick={() => {
+                    const maxQty = selectedEvent.totalTickets - selectedEvent.ticketsMinted;
+                    if (maxQty === 0) {
+                      toast.success('Joined Waitlist! We will notify you when a resale ticket is available.', {
+                        icon: '🔔',
+                        style: { border: '2px solid var(--primary)', background: 'var(--bg)', color: 'var(--text)' }
+                      });
+                    } else {
+                      handleBookTicket();
+                    }
+                  }}
+                  className="brutal-btn"
+                  style={{ 
+                    gridColumn: 'span 2',
+                    width: '100%', padding: '16px', 
+                    background: selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 ? 'var(--bg)' : 'var(--primary)', 
+                    color: selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 ? 'var(--text)' : '#000', 
+                    border: '3px solid var(--border)', cursor: 'pointer', 
+                    fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', textTransform: 'uppercase', fontWeight: 'bold'
+                  }}
+                >
+                  {((selectedEvent.totalTickets - selectedEvent.ticketsMinted) === 0) 
+                    ? <><Icon.Bell /> JOIN WAITLIST</>
+                    : <><Icon.Ticket /> BOOK TICKET • ₹{selectedEvent.price.toLocaleString()}</>
                   }
-                }}
-                className="brutal-btn"
-                style={{ 
-                  width: '100%', padding: '16px', 
-                  background: selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 ? 'var(--bg)' : 'var(--primary)', 
-                  color: selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 ? 'var(--text)' : '#000', 
-                  border: '3px solid var(--border)', cursor: 'pointer', 
-                  fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', textTransform: 'uppercase', fontWeight: 'bold'
-                }}
-              >
-                {((selectedEvent.isResale ? 1 : (selectedEvent.totalTickets - selectedEvent.ticketsMinted)) === 0) 
-                  ? <><Icon.Bell /> JOIN WAITLIST</>
-                  : <><Icon.Ticket /> BOOK {ticketQuantity} {ticketQuantity === 1 ? 'TICKET' : 'TICKETS'} • ₹{(selectedEvent.price * ticketQuantity).toLocaleString()}</>
-                }
-              </button>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -677,8 +674,24 @@ const DashboardPage = () => {
       <AadhaarModal
         isOpen={showAadhaarModal}
         onClose={() => { setShowAadhaarModal(false); setBookingEvent(null); }}
-        onBookingComplete={handleBookingComplete}
+        onBookingComplete={handleIdentityVerified}
         event={bookingEvent}
+      />
+      
+      <PaymentGatewayModal
+        isOpen={showPaymentModal}
+        onClose={() => { setShowPaymentModal(false); }}
+        event={bookingEvent}
+        amount={bookingEvent?.price || 0}
+        onPaymentSuccess={handlePaymentSuccess}
+      />
+
+      <OTPVerificationModal
+        isOpen={showOTPModal}
+        onClose={() => { setShowOTPModal(false); setVerifiedIdentity(null); }}
+        event={bookingEvent}
+        identityId={verifiedIdentity}
+        onOTPVerified={handleOTPVerified}
       />
     </div>
   );
