@@ -282,12 +282,11 @@ contract ProofPass is ERC721, Ownable {
      * @param tokenId Token to list
      * @param price Resale price in INR
      */
-    function listForResale(uint256 tokenId, uint256 price) external {
+    function listForResale(uint256 tokenId, uint256 price) external onlyOwner{
         require(tokenId < nextTokenId,           "Ticket not found");
-        require(ownerOf(tokenId) == msg.sender,  "Not ticket owner");
         require(!tickets[tokenId].used,          "Ticket already used");
         require(price > 0,                       "Price must be > 0");
-
+        // require(price<tickets[tokenId].salePrice, "Price must be less than original sale price");
         tickets[tokenId].isListed = true;
         tickets[tokenId].listPrice = price;
         listedTokens.push(tokenId);
@@ -299,9 +298,9 @@ contract ProofPass is ERC721, Ownable {
      * @notice Cancel resale listing
      * @param tokenId Token to unlist
      */
-    function cancelListing(uint256 tokenId) external {
+    function cancelListing(uint256 tokenId) external onlyOwner{
         require(tokenId < nextTokenId,           "Ticket not found");
-        require(ownerOf(tokenId) == msg.sender,  "Not ticket owner");
+        // require(ownerOf(tokenId) == msg.sender,  "Not ticket owner");
         require(tickets[tokenId].isListed,       "Ticket not listed");
 
         tickets[tokenId].isListed = false;
@@ -316,12 +315,12 @@ contract ProofPass is ERC721, Ownable {
      * @param tokenId Token to update
      * @param newPrice New resale price in INR
      */
-    function updateListPrice(uint256 tokenId, uint256 newPrice) external {
+    function updateListPrice(uint256 tokenId, uint256 newPrice) external onlyOwner{
         require(tokenId < nextTokenId,           "Ticket not found");
-        require(ownerOf(tokenId) == msg.sender,  "Not ticket owner");
+        // require(ownerOf(tokenId) == msg.sender,  "Not ticket owner");
         require(tickets[tokenId].isListed,       "Ticket not listed");
         require(newPrice > 0,                    "Price must be > 0");
-
+        // require(newPrice < tickets[tokenId].salePrice, "Price must be less than original sale price");
         uint256 oldPrice = tickets[tokenId].listPrice;
         tickets[tokenId].listPrice = newPrice;
 

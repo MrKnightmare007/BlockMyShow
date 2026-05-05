@@ -18,7 +18,7 @@
     {"key": "phoneNumber", "value": "+919876543210"},
     {"key": "ticketOtp", "value": "123456"},
     {"key": "tokenId", "value": "1"},
-    {"key": "contractAddress", "value": "0xD1c02b3F300CC5815A84E0c5cB36C179FB673A0F"},
+    {"key": "contractAddress", "value": "0xb950c531c7A75d7c29609eBcf77dF4226E5AA28C"},
     {"key": "listPrice", "value": "500"},
     {"key": "buyerIdentity", "value": "buyer123"},
     {"key": "resaleOtp", "value": "123456"}

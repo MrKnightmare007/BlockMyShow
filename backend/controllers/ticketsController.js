@@ -269,7 +269,9 @@ const listForResale = async (req, res) => {
     let owner
     try {
       owner = await getTicketOwner(token_id)
+      console.log('[listForResale] Token owner:', owner, 'User wallet:', wallet_address)
     } catch (err) {
+      console.error('[listForResale] Failed to get ticket owner:', err.message)
       return res.status(502).json({
         success: false,
         message: 'Failed to verify ticket ownership',
@@ -278,11 +280,13 @@ const listForResale = async (req, res) => {
     }
 
     if (owner.toLowerCase() !== wallet_address.toLowerCase()) {
+      console.log('[listForResale] Ownership mismatch - user does not own this ticket')
       return res.status(403).json({
         success: false,
         message: 'You do not own this ticket'
       })
     }
+    console.log('[listForResale] Ownership verified')
 
     if (ticket.used) {
       return res.status(400).json({
@@ -616,6 +620,26 @@ const buyResaleRequest = async (req, res) => {
       })
     }
 
+    // Verify seller still owns the ticket
+    const { getTicketOwner } = require('../service/blockchainService')
+    let seller
+    try {
+      seller = await getTicketOwner(token_id)
+    } catch (err) {
+      return res.status(502).json({
+        success: false,
+        message: 'Failed to verify ticket ownership',
+        error: err.message
+      })
+    }
+
+    if (!seller) {
+      return res.status(400).json({
+        success: false,
+        message: 'Could not determine ticket seller'
+      })
+    }
+
     // Verify buyer identity exists
     const identity = await getIdentityByRawId(buyer_identity)
     if (!identity) {
@@ -625,12 +649,12 @@ const buyResaleRequest = async (req, res) => {
       })
     }
 
-    if (!identity.is_verified) {
-      return res.status(400).json({
-        success: false,
-        message: 'Buyer identity is not verified'
-      })
-    }
+    // if (!identity.is_verified) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'Buyer identity is not verified'
+    //   })
+    // }
 
     // Generate and send OTP
     const { createResaleOtp } = require('../service/otpService')
@@ -715,6 +739,26 @@ const buyResaleConfirm = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Ticket has already been used'
+      })
+    }
+
+    // Verify seller still owns the ticket
+    const { getTicketOwner } = require('../service/blockchainService')
+    let seller
+    try {
+      seller = await getTicketOwner(token_id)
+    } catch (err) {
+      return res.status(502).json({
+        success: false,
+        message: 'Failed to verify ticket ownership',
+        error: err.message
+      })
+    }
+
+    if (!seller) {
+      return res.status(400).json({
+        success: false,
+        message: 'Could not determine ticket seller'
       })
     }
 
