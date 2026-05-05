@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import Loader from '../components/Loader';
 
 // Inline Icons for Web3 aesthetic
 const Icon = {
@@ -64,6 +65,7 @@ const ProfileDetailsTab = ({ user, walletAddress, token, login }) => {
 
   return (
     <div className="fade-in brutal-card" style={{ padding: '30px' }}>
+      {isSaving && <Loader fullScreen text="Saving profile changes..." />}
       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '24px', fontWeight: 'bold', color: 'var(--text)', marginBottom: '24px', textTransform: 'uppercase' }}>Profile Details</h2>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '40px', alignItems: 'start' }}>
         

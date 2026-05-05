@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import Loader from '../components/Loader';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
@@ -80,14 +81,7 @@ function EventDetailsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="animate-pulse text-center">
-          <div className="text-4xl mb-3">🎫</div>
-          <p className="text-gray-500 dark:text-gray-400">Loading event...</p>
-        </div>
-      </div>
-    );
+    return <Loader fullScreen text="Accessing event details..." />;
   }
 
   if (error || !event) {
@@ -115,6 +109,7 @@ function EventDetailsPage() {
 
   return (
     <div className="animate-fadeIn min-h-screen bg-gray-50 dark:bg-gray-900 dark-transition">
+      {bookingLoading && <Loader fullScreen text="Securing your ticket on blockchain..." />}
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Back */}
         <button onClick={() => navigate(-1)}

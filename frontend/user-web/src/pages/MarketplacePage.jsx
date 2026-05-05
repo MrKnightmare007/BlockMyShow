@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import BuyResaleModal from '../components/BuyResaleModal';
+import Loader from '../components/Loader';
 
 import API_BASE from '../utils/api';
 
@@ -73,11 +74,7 @@ export default function MarketplacePage() {
         </div>
 
         {/* States */}
-        {loading && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-            {[1, 2, 3].map(i => <div key={i} className="brutal-card" style={{ height: '220px', opacity: 0.4 }} />)}
-          </div>
-        )}
+        {loading && <Loader fullScreen text="Scanning resale network..." />}
 
         {error && (
           <div className="brutal-card" style={{ textAlign: 'center', padding: '3rem', color: '#ef4444', fontFamily: 'Space Mono, monospace' }}>

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
 import API_BASE from '../utils/api';
+import Loader from '../components/Loader';
 
 const Icon = {
   Plus: () => (
@@ -144,6 +145,12 @@ function ManageEventsPage() {
 
   return (
     <div style={{ minHeight: 'calc(100vh - 60px)', background: 'var(--bg)', color: 'var(--text)', padding: '2rem' }}>
+      {(loading || creating || !!updating) && (
+        <Loader 
+          fullScreen 
+          text={creating ? 'Deploying to Blockchain...' : updating ? 'Updating Metadata...' : 'Fetching Events...'} 
+        />
+      )}
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         
         {/* Header */}
