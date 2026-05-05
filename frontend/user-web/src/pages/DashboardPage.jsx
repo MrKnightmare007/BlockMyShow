@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import AadhaarModal from '../components/AadhaarModal';
 import BuyResaleModal from '../components/BuyResaleModal';
 import PaymentGatewayModal from '../components/PaymentGatewayModal';
-import OTPVerificationModal from '../components/OTPVerificationModal';
 import EventCard from '../components/EventCard';
 import { useLocation as useAppLocation } from '../context/LocationContext';
 import { useCurrency, CRYPTO_CONFIG } from '../context/CurrencyContext';
@@ -246,12 +244,8 @@ const DashboardPage = () => {
   const [priceRange, setPriceRange] = useState({ min: 0, max: 100000 });
   const [dateFilter, setDateFilter] = useState('All');
   const [marketType, setMarketType] = useState('Official');
-  const [showAadhaarModal, setShowAadhaarModal] = useState(false);
-  const [bookingEvent, setBookingEvent] = useState(null);
+  const [bookingEvent, setBookingEvent] = useState(null);   // active booking event → shows PaymentGatewayModal
   const [buyResaleListing, setBuyResaleListing] = useState(null);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [showOTPModal, setShowOTPModal] = useState(false);
-  const [verifiedIdentity, setVerifiedIdentity] = useState(null);
 
   // Fetch real events and resale listings on mount
   useEffect(() => {
@@ -350,36 +344,13 @@ const DashboardPage = () => {
 
   const handleBookTicket = () => {
     setBookingEvent(selectedEvent);
-    setShowAadhaarModal(true);
   };
 
-  const handleIdentityVerified = (identityData) => {
-    // Store verified identity and move to payment
-    setVerifiedIdentity(identityData?.identity_id);
-    setShowAadhaarModal(false);
-    setShowPaymentModal(true);
-  };
-
-  const handlePaymentSuccess = async (paymentData) => {
-    // After payment, show OTP verification modal
-    if (!bookingEvent || !verifiedIdentity) {
-      toast.error('❌ Missing booking details');
-      return;
-    }
-
-    // Close payment modal and open OTP modal
-    setShowPaymentModal(false);
-    setShowOTPModal(true);
-    toast.success('✅ Payment confirmed! Please verify OTP to complete booking.', { duration: 3000 });
-  };
-
-  const handleOTPVerified = (ticketData) => {
-    // After OTP verification, ticket is minted
-    // Reset all states
-    setShowOTPModal(false);
+  const handleBookingSuccess = (ticketData) => {
+    // Ticket minted — close modal and reset
     setBookingEvent(null);
-    setVerifiedIdentity(null);
     setSelectedEvent(null);
+    toast.success(`🎫 Ticket #${ticketData?.token_id ?? ''} minted!`, { duration: 4000 });
   };
 
   return (
@@ -675,28 +646,12 @@ const DashboardPage = () => {
         </div>
       )}
 
-      {/* Modals */}
-      <AadhaarModal
-        isOpen={showAadhaarModal}
-        onClose={() => { setShowAadhaarModal(false); setBookingEvent(null); }}
-        onBookingComplete={handleIdentityVerified}
-        event={bookingEvent}
-      />
-      
+      {/* Single unified booking modal: Identity → Payment → OTP → Mint */}
       <PaymentGatewayModal
-        isOpen={showPaymentModal}
-        onClose={() => { setShowPaymentModal(false); }}
+        isOpen={!!bookingEvent}
+        onClose={() => setBookingEvent(null)}
         event={bookingEvent}
-        amount={bookingEvent?.price || 0}
-        onPaymentSuccess={handlePaymentSuccess}
-      />
-
-      <OTPVerificationModal
-        isOpen={showOTPModal}
-        onClose={() => { setShowOTPModal(false); setVerifiedIdentity(null); }}
-        event={bookingEvent}
-        identityId={verifiedIdentity}
-        onOTPVerified={handleOTPVerified}
+        onPaymentSuccess={handleBookingSuccess}
       />
       <BuyResaleModal
         listing={buyResaleListing}
