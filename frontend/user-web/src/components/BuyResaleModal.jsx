@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
@@ -13,7 +13,7 @@ import API_BASE from '../utils/api';
  *   onClose   — close callback
  *   onSuccess — called after successful purchase (before redirect)
  *
- * Step flow: identity → payment → otp → success
+ * Step flow: identity → razorpay payment → otp → success
  */
 const BuyResaleModal = ({ listing, token, onClose, onSuccess }) => {
   const navigate = useNavigate();
@@ -23,6 +23,17 @@ const BuyResaleModal = ({ listing, token, onClose, onSuccess }) => {
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState('');
   const [resultData, setResultData] = useState(null);
+  const [paymentData, setPaymentData] = useState(null);
+
+  // Load Razorpay script
+  useEffect(() => {
+    if (!window.Razorpay) {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, []);
 
   if (!listing) return null;
 
@@ -40,11 +51,9 @@ const BuyResaleModal = ({ listing, token, onClose, onSuccess }) => {
   const formatDate = (val) => {
     if (!val) return 'TBA';
     const unix = Number(val);
-    // Unix timestamp (seconds)
     if (Number.isFinite(unix) && unix > 1e9) {
       return new Date(unix * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
     }
-    // ISO string
     return new Date(val).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   };
   const dateStr = formatDate(listing.event?.date ?? listing.date);
@@ -59,18 +68,71 @@ const BuyResaleModal = ({ listing, token, onClose, onSuccess }) => {
     setStep('payment');
   };
 
-  // Step 2 → 3: POST /api/tickets/buy-resale/request
+  // Step 2 → Payment: POST /api/tickets/buy-resale/request to get Razorpay order
   const handlePaymentConfirm = async () => {
-    setLoading(true); setError('');
+    setLoading(true);
+    setError('');
     try {
-      const res  = await fetch(`${API_BASE}/tickets/buy-resale/request`, {
-        method: 'POST', headers: authHeaders,
-        body: JSON.stringify({ tokenId: String(tokenId), buyerIdentity }),
+      const res = await fetch(`${API_BASE}/tickets/buy-resale/request`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({
+          tokenId: String(tokenId),
+          buyerIdentity: String(buyerIdentity)
+        })
       });
+      
       const data = await res.json();
-      if (!data.success) throw new Error(data.message || 'Request failed');
-      toast.success('OTP sent to your registered number!');
-      setStep('otp');
+      if (!data.success) throw new Error(data.message || 'Failed to initiate payment');
+      
+      toast.success('Opening payment gateway...');
+      setPaymentData(data);
+      
+      // Open Razorpay checkout
+      const options = {
+        key: data.key_id,
+        amount: data.amount,
+        currency: data.currency,
+        name: 'BlockMyShow - Resale',
+        description: `Resale: ${eventTitle}`,
+        order_id: data.order_id,
+        handler: async (response) => {
+          try {
+            // Store payment response data
+            setPaymentData({
+              ...data,
+              payment_id: response.razorpay_payment_id,
+              signature: response.razorpay_signature
+            });
+            // Move to OTP verification
+            setStep('otp');
+            toast.success('Payment received! Please enter OTP.');
+          } catch (err) {
+            setError(err.message);
+          }
+        },
+        prefill: {
+          name: 'User',
+          email: 'user@example.com',
+          contact: '9999999999',
+        },
+        theme: {
+          color: '#3399cc',
+        },
+        modal: {
+          ondismiss: () => {
+            setLoading(false);
+            setError('Payment cancelled');
+          }
+        }
+      };
+
+      if (!window.Razorpay) {
+        throw new Error('Razorpay SDK not loaded');
+      }
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
     } catch (e) {
       setError(e.message);
     } finally {
@@ -78,19 +140,42 @@ const BuyResaleModal = ({ listing, token, onClose, onSuccess }) => {
     }
   };
 
-  // Step 3 → 4: POST /api/tickets/buy-resale/confirm
+  // Step 3 → 4: POST /api/tickets/buy-resale/confirm with payment signature + OTP
   const handleOTPConfirm = async () => {
-    if (otp.length !== 6) { setError('Enter 6-digit OTP'); return; }
-    setLoading(true); setError('');
+    if (otp.length !== 6) {
+      setError('Enter 6-digit OTP');
+      return;
+    }
+
+    if (!paymentData) {
+      setError('Payment data missing');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
     try {
-      const res  = await fetch(`${API_BASE}/tickets/buy-resale/confirm`, {
-        method: 'POST', headers: authHeaders,
-        body: JSON.stringify({ tokenId: String(tokenId), buyerIdentity, otp }),
+      const res = await fetch(`${API_BASE}/tickets/buy-resale/confirm`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({
+          tokenId: String(tokenId),
+          buyerIdentity: String(buyerIdentity),
+          otp,
+          order_id: paymentData.order_id,
+          payment_id: paymentData.payment_id,
+          signature: paymentData.signature
+        })
       });
+
       const data = await res.json();
-      if (!data.success) throw new Error(data.message || 'Invalid OTP');
+      if (!data.success) throw new Error(data.message || 'Invalid OTP or payment verification failed');
+
       setResultData(data);
       setStep('success');
+      toast.success('✅ Resale ticket purchased successfully!');
+      
       if (onSuccess) onSuccess(data);
     } catch (e) {
       setError(e.message);
