@@ -43,7 +43,6 @@ const Icon = {
 
 // Normalize backend event to UI shape
 const normalizeEvent = (event, index) => {
-  const COLORS = ['#4a90e2', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#31bbaf', '#a855f7'];
   const eventDate = Number(event.date);
   return {
     id: String(event.eventId),
@@ -56,8 +55,7 @@ const normalizeEvent = (event, index) => {
     venue: event.venue || 'TBA',
     city: event.city || 'Kolkata',
     description: event.description || 'Blockchain-backed event ticketed through BlockMyShow.',
-    image: event.photoUrl || COLORS[index % COLORS.length],
-    category: event.category || 'Technology',
+    image: event.photoUrl || `https://picsum.photos/400?random=${index}`,
     organizer: event.organizer || 'BlockMyShow',
     metadataURI: event.metadataURI,
   };
@@ -242,7 +240,6 @@ const DashboardPage = () => {
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
   const [priceRange, setPriceRange] = useState({ min: 0, max: 100000 });
   const [dateFilter, setDateFilter] = useState('All');
   const [marketType, setMarketType] = useState('Official');
@@ -274,10 +271,7 @@ const DashboardPage = () => {
     fetchData();
   }, []);
 
-  // Get unique categories
-  const categories = ['All', ...new Set(events.map(event => event.category))];
-
-  // Filter events based on search, category, city, price, date, and market type
+  // Filter events based on search, city, price, date, and market type
   useEffect(() => {
     let baseData = marketType === 'Official' ? events : resaleTickets;
     let filtered = baseData;
@@ -294,11 +288,6 @@ const DashboardPage = () => {
         event.venue.toLowerCase().includes(searchTerm.toLowerCase()) ||
         event.description.toLowerCase().includes(searchTerm.toLowerCase())
       );
-    }
-    
-    // Category filter
-    if (selectedCategory !== 'All') {
-      filtered = filtered.filter(event => event.category === selectedCategory);
     }
 
     // Price filter
@@ -335,7 +324,7 @@ const DashboardPage = () => {
     }
     
     setFilteredEvents(filtered);
-  }, [searchTerm, selectedCategory, selectedCity, priceRange, dateFilter, marketType, events]);
+  }, [searchTerm, selectedCity, priceRange, dateFilter, marketType, events]);
 
   // Format date for display
   const formatDate = (dateString) => {
@@ -434,32 +423,6 @@ const DashboardPage = () => {
                   </button>
                 ))}
               </div>
-            </div>
-
-            {/* Category Filter */}
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', textTransform: 'uppercase' }}>Category</label>
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  border: '2px solid var(--border)',
-                  background: 'var(--input-bg)',
-                  color: 'var(--text)',
-                  fontSize: '14px',
-                  fontFamily: 'var(--font-mono)',
-                  outline: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                {categories.map(category => (
-                  <option key={category} value={category}>
-                    {category === 'All' ? 'All Categories' : category}
-                  </option>
-                ))}
-              </select>
             </div>
 
             {/* Price Filter */}
@@ -577,13 +540,10 @@ const DashboardPage = () => {
           <div onClick={e => e.stopPropagation()} className="brutal-card" style={{ maxWidth: '700px', width: '100%', maxHeight: '90vh', overflow: 'auto' }}>
             
             {/* Modal Header Image */}
-            <div style={{ height: '250px', background: selectedEvent.image, position: 'relative', borderBottom: '3px solid var(--border)' }}>
+            <div style={{ height: '250px', backgroundImage: `url(${selectedEvent.image})`, backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative', borderBottom: '3px solid var(--border)' }}>
               <button onClick={() => setSelectedEvent(null)} style={{ position: 'absolute', top: '16px', right: '16px', background: '#000', color: '#fff', border: '2px solid #fff', width: '36px', height: '36px', cursor: 'pointer', fontSize: '20px', fontWeight: 'bold' }}>
                 ×
               </button>
-              <div style={{ position: 'absolute', bottom: '16px', left: '16px', background: '#000', color: '#fff', padding: '8px 16px', border: '2px solid #fff', fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                {selectedEvent.category}
-              </div>
             </div>
             
             {/* Modal Content */}

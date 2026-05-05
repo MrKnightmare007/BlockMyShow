@@ -46,10 +46,7 @@ const EventCard = ({ event, onSelect }) => {
       className="brutal-card"
       style={{ cursor: 'pointer', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} 
     >
-      <div style={{ height: '180px', background: event.image, position: 'relative', borderBottom: '3px solid var(--border)' }}>
-        <div style={{ position: 'absolute', top: '12px', right: '12px', background: '#000', color: '#fff', padding: '6px 12px', border: '2px solid #fff', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>
-          {event.category}
-        </div>
+      <div style={{ height: '180px', backgroundImage: `url(${event.image})`, backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative', borderBottom: '3px solid var(--border)' }}>
         {remaining < 50 && (
           <div style={{ position: 'absolute', bottom: '12px', left: '12px', background: '#ef4444', color: '#fff', border: '2px solid #fff', padding: '6px 12px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>
             Only {remaining} left!

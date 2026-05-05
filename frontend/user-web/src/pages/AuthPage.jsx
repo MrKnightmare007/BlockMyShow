@@ -20,114 +20,74 @@ const Icon = {
 };
 
 /**
- * AuthPage — uses feature-anubhab backend:
- *  - Email/Password → POST /api/user/auth
- *  - Admin → POST /api/admin/login
- *  - MetaMask → local wallet connection only
+ * AuthPage — simplified auth with two endpoints:
+ *  - POST /api/user/auth  → handles email login/signup
+ *  - POST /api/admin/login → admin authentication
  */
 const AuthPage = () => {
   const { login, setAuthError, error } = useAuth();
-  const [activeTab, setActiveTab] = useState('email');
-  const [isSignup, setIsSignup] = useState(false);
-  const [form, setForm] = useState({ email: '', password: '', name: '', otp: '', newPassword: '', adminUser: '' });
+  const [authMode, setAuthMode] = useState('user'); // 'user' or 'admin'
+  const [form, setForm] = useState({ email: '', password: '', otp: '', adminUser: '' });
   const [otpSent, setOtpSent] = useState(false);
-  const [isForgotPassword, setIsForgotPassword] = useState(false);
-  const [forgotStep, setForgotStep] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  // ─── Email Auth (feature-anubhab: POST /api/user/auth) ───────────────────
+  // ─── User Email Auth: Send email + password (handles both login & signup) ────────────────────────────────────────
 
-  // Send OTP for signup
   const handleSendOTP = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE}/user/auth`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: form.email, password: form.password, name: form.name, mode: 'signup_otp' }),
-      });
-      const data = await response.json();
-      if (!data.success) throw new Error(data.message || 'Failed to send OTP');
-      setOtpSent(true);
-      toast.success('OTP sent to ' + form.email);
-    } catch (err) {
-      toast.error(err.message);
-    } finally {
-      setLoading(false);
+    if (!form.email || !form.password) {
+      toast.error('Email and password required');
+      return;
     }
-  };
-
-  // Verify OTP + create account
-  const handleVerifyOTP = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/user/auth`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: form.email, password: form.password, name: form.name, otp: form.otp }),
-      });
-      const data = await response.json();
-      if (!data.success) throw new Error(data.message || 'OTP verification failed');
-      login(data.user, data.token, data.user?.wallet_address || null, 'user');
-      toast.success('Account created successfully!');
-    } catch (err) {
-      toast.error(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ─── Email Sign In ────────────────────────────────────────────────────────
-
-  const handleEmailLogin = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE}/user/auth`, {
+      const res = await fetch(`${API_BASE}/user/auth`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: form.email, password: form.password }),
       });
-      const data = await response.json();
-      if (!data.success) throw new Error(data.message || 'Login failed');
-      login(data.user, data.token, data.user?.wallet_address || null, 'user');
-      toast.success('Signed in successfully!');
-    } catch (err) {
-      toast.error(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ─── Google Auth (mock — calls feature-anubhab /user/auth with Google flag) ─
-
-  const handleGoogleAuth = async () => {
-    setLoading(true);
-    try {
-      if (isMockFirebase || !auth || !googleProvider || import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
-        const mockEmail = prompt("Enter a mock email for development login:", "testuser@example.com");
-        if (!mockEmail) { setLoading(false); return; }
-        const response = await fetch(`${API_BASE}/user/auth`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: mockEmail, password: 'google_oauth', provider: 'google' }),
-        });
-        const data = await response.json();
-        if (!data.success) throw new Error(data.message || 'Mock Google auth failed');
+      const data = await res.json();
+      
+      // Status 200: User exists and password is valid → Login successful
+      if (res.status === 200 && data.success) {
         login(data.user, data.token, data.user?.wallet_address || null, 'user');
-        toast.success('Logged in (Dev Mode)');
+        toast.success('Logged in successfully!');
         return;
       }
-      const result = await signInWithPopup(auth, googleProvider);
-      const idToken = await result.user.getIdToken();
-      const response = await fetch(`${API_BASE}/user/auth`, {
+      
+      // Status 202: User doesn't exist → Need OTP for signup
+      if (res.status === 202 && data.success) {
+        setOtpSent(true);
+        toast.success('OTP sent to ' + form.email);
+        return;
+      }
+      
+      // Any other response is an error
+      throw new Error(data.message || 'Authentication failed');
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── User Email Auth: Verify OTP ──────────────────────────────────────
+
+  const handleVerifyOTP = async () => {
+    if (!form.otp || form.otp.length !== 6) {
+      toast.error('Enter valid 6-digit OTP');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/user/auth`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken, provider: 'google' }),
+        body: JSON.stringify({ email: form.email, password: form.password, otp: form.otp }),
       });
-      const data = await response.json();
-      if (!data.success) throw new Error(data.message || 'Google auth failed');
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'OTP verification failed');
       login(data.user, data.token, data.user?.wallet_address || null, 'user');
-      toast.success('Google authentication successful!');
+      toast.success('Logged in successfully!');
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -135,80 +95,29 @@ const AuthPage = () => {
     }
   };
 
-  // ─── MetaMask Auth ────────────────────────────────────────────────────────
+  // ─── Admin Login ───────────────────────────────────────────────────────
 
-  const handleMetaMaskAuth = async () => {
-    setLoading(true);
-    try {
-      if (!window.ethereum) throw new Error('MetaMask not installed.');
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-      if (!accounts?.length) throw new Error('No MetaMask accounts found');
-      const address = accounts[0];
-      // Use wallet address as identity — store locally
-      const mockUser = { id: `metamask_${Date.now()}`, wallet_address: address, auth_method: 'metamask' };
-      login(mockUser, `metamask_${Date.now()}`, address, 'user');
-      toast.success('Wallet connected!');
-    } catch (err) {
-      toast.error(err.message);
-    } finally {
-      setLoading(false);
+  const handleAdminLogin = async () => {
+    if (!form.adminUser || !form.password) {
+      toast.error('Username and password required');
+      return;
     }
-  };
-
-  // ─── Forgot Password ──────────────────────────────────────────────────────
-
-  const handleForgotPasswordOTP = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/auth/forgot-password/send-otp`, {
+      const res = await fetch(`${API_BASE}/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: form.email }),
+        body: JSON.stringify({ username: form.adminUser, password: form.password }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || data.error || 'Failed to send reset code');
-      setForgotStep(1);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'Admin login failed');
+      login(data.admin || { role: 'admin', username: form.adminUser }, data.token, null, 'admin');
+      toast.success('Admin logged in!');
     } catch (err) {
       toast.error(err.message);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleResetPassword = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE}/auth/forgot-password/reset`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: form.email,
-          otp: form.otp,
-          newPassword: form.newPassword,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || data.error || 'Reset failed');
-      toast.success('Password updated! Please sign in.');
-      setIsForgotPassword(false);
-      setForgotStep(0);
-      setForm({ ...form, password: '', otp: '', newPassword: '' });
-    } catch (err) {
-      toast.error(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ─── Reset state when switching modes ────────────────────────────────────
-
-  const switchMode = (signup) => {
-    setIsSignup(signup);
-    setIsForgotPassword(false);
-    setForgotStep(0);
-    setOtpSent(false);
-    setForm({ email: '', password: '', name: '', otp: '', newPassword: '' });
-    setAuthError(null);
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -291,218 +200,144 @@ const AuthPage = () => {
             Welcome to BlockMyShow
           </h2>
 
-          {/* Sign Up / Sign In toggle */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '1.5rem' }}>
+          {/* Auth Mode Toggle: User or Admin */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '2rem' }}>
             <button
-              onClick={() => switchMode(false)}
+              onClick={() => {
+                setAuthMode('user');
+                setOtpSent(false);
+                setForm({ email: '', password: '', otp: '', adminUser: '' });
+              }}
               style={{
-                flex: 1, padding: '10px', 
-                border: !isSignup ? '2px solid var(--border)' : '2px solid var(--border)',
-                background: !isSignup ? 'var(--text)' : 'var(--bg)', 
-                color: !isSignup ? 'var(--bg)' : 'var(--text)',
-                cursor: 'pointer', fontFamily: 'monospace', fontSize: '12px', fontWeight: 'bold',
-                borderRadius: '4px', transition: 'all 0.2s',
-                opacity: !isSignup ? 1 : 0.6
+                flex: 1, 
+                padding: '12px',
+                border: authMode === 'user' ? '2px solid var(--primary)' : '2px solid var(--border)',
+                background: authMode === 'user' ? 'var(--primary)' : 'var(--surface)',
+                color: authMode === 'user' ? '#000' : 'var(--text)',
+                cursor: 'pointer',
+                fontFamily: 'monospace',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                borderRadius: '4px',
+                transition: 'all 0.2s',
+                boxShadow: authMode === 'user' ? '0 0 15px var(--primary)' : 'none'
               }}
             >
-              Sign In
+              👤 User Login
             </button>
             <button
-              onClick={() => switchMode(true)}
+              onClick={() => {
+                setAuthMode('admin');
+                setOtpSent(false);
+                setForm({ email: '', password: '', otp: '', adminUser: '' });
+              }}
               style={{
-                flex: 1, padding: '10px', 
-                border: isSignup ? '2px solid var(--border)' : '2px solid var(--border)',
-                background: isSignup ? 'var(--text)' : 'var(--bg)', 
-                color: isSignup ? 'var(--bg)' : 'var(--text)',
-                cursor: 'pointer', fontFamily: 'monospace', fontSize: '12px', fontWeight: 'bold',
-                borderRadius: '4px', transition: 'all 0.2s',
-                opacity: isSignup ? 1 : 0.6
+                flex: 1,
+                padding: '12px',
+                border: authMode === 'admin' ? '2px solid var(--primary)' : '2px solid var(--border)',
+                background: authMode === 'admin' ? 'var(--primary)' : 'var(--surface)',
+                color: authMode === 'admin' ? '#000' : 'var(--text)',
+                cursor: 'pointer',
+                fontFamily: 'monospace',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                borderRadius: '4px',
+                transition: 'all 0.2s',
+                boxShadow: authMode === 'admin' ? '0 0 15px var(--primary)' : 'none'
               }}
             >
-              Sign Up
+              ⚙️ Admin Login
             </button>
           </div>
 
-
-
-          {/* Sign Up / Sign In toggle */}
-
-          {/* Auth Method Tabs */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-            {['email', 'google', 'metamask', 'admin'].map(tab => (
-              <button
-                key={tab}
-                onClick={() => { setActiveTab(tab); setOtpSent(false); toast.dismiss(); }}
-                style={{
-                  flex: 1, padding: '10px 8px',
-                  border: activeTab === tab ? '2px solid var(--primary)' : '2px solid var(--border)',
-                  background: activeTab === tab ? 'var(--primary)' : 'var(--surface)',
-                  color: activeTab === tab ? '#000' : 'var(--text)',
-                  boxShadow: activeTab === tab ? '0 0 15px var(--primary)' : 'none',
-                  cursor: 'pointer', fontFamily: 'monospace', fontSize: '11px',
-                  fontWeight: 'bold', borderRadius: '4px', transition: 'all 0.2s'
-                }}
-              >
-                {tab === 'email' ? '📧' : tab === 'google' ? '🔵' : tab === 'metamask' ? '🦊' : '⚙️'} {tab.toUpperCase()}
-              </button>
-            ))}
-          </div>
-
-          {/* ── EMAIL TAB ── */}
-          {activeTab === 'email' && (
+          {/* USER LOGIN FLOW */}
+          {authMode === 'user' && (
             <div>
-              {/* Forgot Password Flow */}
-              {isForgotPassword ? (
-                forgotStep === 0 ? (
-                  <>
-                    <h3 style={{ fontSize: '14px', marginBottom: '12px', textTransform: 'uppercase' }}>Reset Password</h3>
-                    <p style={{ fontSize: '12px', color: '#666', marginBottom: '16px' }}>Enter your email to receive a password reset code.</p>
-                    <input type="email" placeholder="e.g., user@example.com" value={form.email}
-                      onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} />
-                    <button onClick={handleForgotPasswordOTP} disabled={loading || !form.email} style={btnStyle(loading || !form.email)}>
-                      {loading ? 'Sending Code...' : 'Send Reset Code'}
-                    </button>
-                    <button onClick={() => setIsForgotPassword(false)} style={{ ...btnStyle(false), background: 'var(--bg)', color: 'var(--text)', border: '2px solid var(--border)', marginTop: '8px' }}>
-                      Back to Login
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <h3 style={{ fontSize: '14px', marginBottom: '12px', textTransform: 'uppercase' }}>Verify & Reset</h3>
-                    <p style={{ fontSize: '12px', color: '#666', marginBottom: '16px' }}>Reset code sent to {form.email}</p>
-                    <input type="text" placeholder="Enter 6-digit code" maxLength={6} value={form.otp}
-                      onChange={e => setForm({ ...form, otp: e.target.value })} style={inputStyle} />
-                    <input type="password" placeholder="Min. 8 characters" value={form.newPassword}
-                      onChange={e => setForm({ ...form, newPassword: e.target.value })} style={inputStyle} />
-                    <button onClick={handleResetPassword} disabled={loading || !form.otp || !form.newPassword} style={btnStyle(loading || !form.otp || !form.newPassword)}>
-                      {loading ? 'Resetting...' : 'Update Password'}
-                    </button>
-                    <button onClick={() => setForgotStep(0)} style={{ ...btnStyle(false), background: 'var(--bg)', color: 'var(--text)', border: '2px solid var(--border)', marginTop: '8px' }}>
-                      Change Email
-                    </button>
-                  </>
-                )
+              {otpSent ? (
+                // Step 2: Enter OTP (only for new accounts)
+                <>
+                  <p style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '16px', lineHeight: 1.5 }}>
+                    6-digit OTP sent to <strong style={{ color: 'var(--primary)' }}>{form.email}</strong>
+                  </p>
+                  <input
+                    type="text"
+                    placeholder="Enter OTP"
+                    maxLength={6}
+                    value={form.otp}
+                    onChange={e => setForm({ ...form, otp: e.target.value })}
+                    style={inputStyle}
+                  />
+                  <button
+                    onClick={handleVerifyOTP}
+                    disabled={loading || form.otp.length !== 6}
+                    style={btnStyle(loading || form.otp.length !== 6)}
+                  >
+                    {loading ? 'Creating Account...' : 'Verify OTP & Create Account'}
+                  </button>
+                  <button
+                    onClick={() => setOtpSent(false)}
+                    style={{ ...btnStyle(false), background: 'var(--surface)', color: 'var(--text)', border: '2px solid var(--border)' }}
+                  >
+                    ← Back
+                  </button>
+                </>
               ) : (
-                /* Sign In / Sign Up Flow */
-                isSignup ? (
-                  otpSent ? (
-                    /* Step 2: Enter OTP */
-                    <>
-                      <p style={{ fontSize: '12px', color: '#555', marginBottom: '12px' }}>
-                        OTP sent to <strong>{form.email}</strong>. Check your inbox.
-                      </p>
-                      <input
-                        type="text"
-                        placeholder="Enter 6-digit OTP"
-                        maxLength={6}
-                        value={form.otp}
-                        onChange={e => setForm({ ...form, otp: e.target.value })}
-                        style={inputStyle}
-                      />
-                      <button
-                        onClick={handleVerifyOTP}
-                        disabled={loading || form.otp.length !== 6}
-                        style={btnStyle(loading || form.otp.length !== 6)}
-                      >
-                        {loading ? 'Verifying...' : 'Verify OTP & Create Account'}
-                      </button>
-                      <button
-                        onClick={() => setOtpSent(false)}
-                        style={{ ...btnStyle(false), background: 'var(--bg)', color: 'var(--text)', border: '2px solid var(--border)', marginTop: '8px' }}
-                      >
-                        ← Back
-                      </button>
-                    </>
-                  ) : (
-                    /* Step 1: Enter details + Send OTP */
-                    <>
-                      <input type="text" placeholder="Your Full Name" value={form.name}
-                        onChange={e => setForm({ ...form, name: e.target.value })} style={inputStyle} />
-                      <input type="email" placeholder="name@example.com" value={form.email}
-                        onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} />
-                      <input type="password" placeholder="Choose a strong password" value={form.password}
-                        onChange={e => setForm({ ...form, password: e.target.value })} style={inputStyle} />
-                      <button
-                        onClick={handleSendOTP}
-                        disabled={loading || !form.email || !form.password}
-                        style={btnStyle(loading || !form.email || !form.password)}
-                      >
-                        {loading ? 'Sending OTP...' : 'Send OTP to Email'}
-                      </button>
-                    </>
-                  )
-                ) : (
-                  /* Sign In with email + password */
-                  <>
-                    <input type="email" placeholder="Enter your email" value={form.email}
-                      onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} />
-                    <input type="password" placeholder="Enter your password" value={form.password}
-                      onChange={e => setForm({ ...form, password: e.target.value })} style={inputStyle} />
-                    <div style={{ textAlign: 'right', marginBottom: '12px' }}>
-                      <button onClick={() => setIsForgotPassword(true)} style={{ background: 'none', border: 'none', color: '#31bbaf', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline' }}>
-                        Forgot Password?
-                      </button>
-                    </div>
-                    <button
-                      onClick={handleEmailLogin}
-                      disabled={loading || !form.email || !form.password}
-                      style={btnStyle(loading || !form.email || !form.password)}
-                    >
-                      {loading ? 'Signing In...' : 'Sign In'}
-                    </button>
-                  </>
-                )
+                // Step 1: Enter email & password
+                <>
+                  <input
+                    type="email"
+                    placeholder="Your email address"
+                    value={form.email}
+                    onChange={e => setForm({ ...form, email: e.target.value })}
+                    style={inputStyle}
+                  />
+                  <input
+                    type="password"
+                    placeholder="Your password"
+                    value={form.password}
+                    onChange={e => setForm({ ...form, password: e.target.value })}
+                    style={inputStyle}
+                  />
+                  <button
+                    onClick={handleSendOTP}
+                    disabled={loading || !form.email || !form.password}
+                    style={btnStyle(loading || !form.email || !form.password)}
+                  >
+                    {loading ? 'Checking...' : 'Login / Signup'}
+                  </button>
+                  <p style={{ fontSize: '12px', color: 'var(--muted)', textAlign: 'center', marginTop: '16px', lineHeight: 1.5 }}>
+                    🔐 Existing account? → Direct login<br/>
+                    ✨ New account? → Creates after OTP verification
+                  </p>
+                </>
               )}
             </div>
           )}
 
-          {/* ── GOOGLE TAB ── */}
-          {activeTab === 'google' && (
-            <button
-              onClick={handleGoogleAuth}
-              disabled={loading}
-              style={{
-                ...btnStyle(loading),
-                background: '#fff', color: '#000', border: '2px solid #4285F4',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
-              }}
-            >
-              <Icon.Google />
-              {loading ? 'Connecting...' : isSignup ? 'Sign Up with Google' : 'Sign In with Google'}
-            </button>
-          )}
-
-          {/* ── ADMIN TAB ── */}
-          {activeTab === 'admin' && (
+          {/* ADMIN LOGIN FLOW */}
+          {authMode === 'admin' && (
             <div>
-              <p style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '1px' }}>Admin Access Only</p>
-              <input type="text" placeholder="Admin username" value={form.adminUser}
-                onChange={e => setForm({ ...form, adminUser: e.target.value })} style={inputStyle} />
-              <input type="password" placeholder="Password" value={form.password}
-                onChange={e => setForm({ ...form, password: e.target.value })} style={inputStyle} />
+              <p style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>⚙️ Admin Access Only</p>
+              <input
+                type="text"
+                placeholder="Admin username"
+                value={form.adminUser}
+                onChange={e => setForm({ ...form, adminUser: e.target.value })}
+                style={inputStyle}
+              />
+              <input
+                type="password"
+                placeholder="Admin password"
+                value={form.password}
+                onChange={e => setForm({ ...form, password: e.target.value })}
+                style={inputStyle}
+              />
               <button
-                onClick={async () => {
-                  setLoading(true);
-                  try {
-                    const res = await fetch(`${API_BASE}/admin/login`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ username: form.adminUser, password: form.password }),
-                    });
-                    const data = await res.json();
-                    if (!data.success) throw new Error(data.message || 'Admin login failed');
-                    login(data.admin || { role: 'admin', username: form.adminUser }, data.token, null, 'admin');
-                    toast.success('Admin logged in!');
-                  } catch (err) {
-                    toast.error(err.message);
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
+                onClick={handleAdminLogin}
                 disabled={loading || !form.adminUser || !form.password}
                 style={btnStyle(loading || !form.adminUser || !form.password)}
               >
-                {loading ? 'Logging in...' : '⚙️ Admin Login'}
+                {loading ? 'Logging in...' : 'Admin Login'}
               </button>
             </div>
           )}
