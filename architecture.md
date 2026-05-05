@@ -1,53 +1,77 @@
-# architecture.md
+# BlockMyShow Architecture
 
-## 1. Smart Contract (On-chain Layer)
+## System Overview
 
-### Overview
-
-The smart contract is the core trust layer of the system. It ensures that:
-
-* Tickets are uniquely minted as NFTs
-* Ownership is verifiable on-chain
-* Tickets cannot be reused
-* Identity is never directly exposed
+```
+╔────────────────────────────────────────────────────────────────╗
+│                     BLOCKMYSHOW SYSTEM                         │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  USER INTERFACE (React 19 + Vite)                            │
+│  ├─ Dashboard: Browse events                                 │
+│  ├─ Booking: Identity → Payment → OTP → Mint                │
+│  ├─ Resale: Buy/Sell tickets (30% price cap)                │
+│  └─ Tickets: View QR codes for entry                         │
+│                                                                │
+│  ADMIN INTERFACE (Expo/React Native)                         │
+│  └─ Gate Scanner: Scan QR codes, mark tickets used           │
+│                                                                │
+│  BACKEND (Node.js + Express + Appwrite)                      │
+│  ├─ /api/events - Event CRUD                                │
+│  ├─ /api/tickets - Booking + OTP verification               │
+│  ├─ /api/tickets/resale - Marketplace                        │
+│  ├─ /api/payment - Razorpay integration                      │
+│  └─ /api/gate - QR scanning + verification                  │
+│                                                                │
+│  SMART CONTRACT (Solidity on Base Sepolia)                   │
+│  └─ Mint NFT tickets, verify ownership                       │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-### Data Structures (Actual Contract)
+## 1. Smart Contract Layer (Solidity)
+
+### Contract Details
+- **Address:** `0xb950c531c7A75d7c29609eBcf77dF4226E5AA28C`
+- **Network:** Base Sepolia (Testnet)
+- **File:** `contract/src/Ticket.sol`
+
+### Data Structures
 
 ```solidity
 struct EventInfo {
     uint256 eventId;
-    string  title;
-    string  venue;
+    string title;
+    string venue;
     uint256 date;
     uint256 price;
     uint256 totalTickets;
     uint256 ticketsMinted;
-    string  metadataURI;
+    string metadataURI;
 }
 
 struct TicketInfo {
     uint256 eventId;
-    bytes32 commitment;
-    bool    used;
+    bytes32 identityCommitment;
+    bool used;
+    uint256 tokenId;
 }
 
-mapping(uint256 => EventInfo)  public events;
+mapping(uint256 => EventInfo) public events;
 mapping(uint256 => TicketInfo) public tickets;
+mapping(address => uint256[]) public userTickets;
 ```
 
----
+### Key Functions
+- `mintTicket(uint256 eventId, bytes32 identityCommitment)` - Mint NFT
+- `useTicket(uint256 ticketId)` - Mark as used at gate
+- `getEventTickets(uint256 eventId)` - List all tickets for event
 
-### Important Note
-
-There is **NO on-chain mapping for:**
-
-```solidity
-walletAddress → tokenIds[]
-```
-
-and also **NO mapping like:**
+### Privacy Design
+- Identity never stored on-chain (only commitment hash)
+- User wallet not linked to ticket
 
 ```solidity
 mapping(uint256 => uint256[]) eventToTokens
