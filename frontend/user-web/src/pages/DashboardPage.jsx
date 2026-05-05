@@ -1,245 +1,740 @@
-import { useMemo, useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import AadhaarModal from '../components/AadhaarModal';
+import PaymentModal from '../components/PaymentModal';
+import EventCard from '../components/EventCard';
+import { useLocation as useAppLocation } from '../context/LocationContext';
+import { useCurrency, CRYPTO_CONFIG } from '../context/CurrencyContext';
+import toast from 'react-hot-toast';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-const COLORS = ['#4a90e2', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'];
+const API_BASE = 'http://localhost:5000/api';
+
+// Icons
+const Icon = {
+  Calendar: () => (
+    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <rect x="3" y="4" width="18" height="18" rx="2"/>
+      <path d="M16 2v4M8 2v4M3 10h18"/>
+    </svg>
+  ),
+  MapPin: () => (
+    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+      <circle cx="12" cy="10" r="3"/>
+    </svg>
+  ),
+  Search: () => (
+    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="8"/>
+      <path d="m21 21-4.35-4.35"/>
+    </svg>
+  ),
+  Filter: () => (
+    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+    </svg>
+  ),
+  Ticket: () => (
+    <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2Z"/></svg>
+  ),
+  Bell: () => (
+    <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+  ),
+};
+
+// Normalize backend event to UI shape
+const normalizeEvent = (event, index) => {
+  const COLORS = ['#4a90e2', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#31bbaf', '#a855f7'];
+  const eventDate = Number(event.date);
+  return {
+    id: String(event.eventId),
+    eventId: event.eventId,
+    title: event.title,
+    price: Number(event.price),
+    totalTickets: Number(event.totalTickets),
+    ticketsMinted: Number(event.ticketsMinted),
+    date: Number.isFinite(eventDate) ? new Date(eventDate * 1000).toISOString() : event.date,
+    venue: event.venue || 'TBA',
+    city: event.city || 'Kolkata',
+    description: event.description || 'Blockchain-backed event ticketed through BlockMyShow.',
+    image: event.photoUrl || COLORS[index % COLORS.length],
+    category: event.category || 'Technology',
+    organizer: event.organizer || 'BlockMyShow',
+    metadataURI: event.metadataURI,
+  };
+};
+
+const normalizeResale = (ticket, index) => {
+  const COLORS = ['linear-gradient(135deg, #4a90e2, #000)', 'linear-gradient(135deg, #ec4899, #000)', 'linear-gradient(135deg, #31bbaf, #000)'];
+  return {
+    id: `resale_${ticket.token_id}`,
+    eventId: ticket.event?.eventId || ticket.event_id,
+    title: `${ticket.event?.title || 'Event'} (RESALE)`,
+    price: Number(ticket.list_price),
+    seller: ticket.seller_address || '0x???',
+    venue: ticket.event?.venue || 'TBA',
+    city: ticket.event?.city || 'Kolkata',
+    date: ticket.event?.date
+      ? (Number.isFinite(Number(ticket.event.date)) ? new Date(Number(ticket.event.date) * 1000).toISOString() : ticket.event.date)
+      : new Date().toISOString(),
+    category: ticket.event?.category || 'Technology',
+    image: COLORS[index % COLORS.length],
+    description: `Resale ticket — originally ₹${ticket.sale_price || ticket.event?.price || 'N/A'}`,
+    isResale: true,
+    tokenId: ticket.token_id,
+    salePrice: ticket.sale_price,
+  };
+};
+
+// Placeholder until API loads
+const MOCK_EVENTS = [
+  { 
+    id: 'event_1', 
+    title: 'Web3 Summit Mumbai 2024', 
+    price: 2500, 
+    totalTickets: 1000, 
+    ticketsMinted: 450, 
+    date: '2024-06-15T10:00:00Z', 
+    venue: 'Mumbai Convention Centre', 
+    city: 'Mumbai',
+    description: 'Annual Web3 conference featuring top blockchain developers, investors, and innovators from around the world.',
+    image: '#4a90e2',
+    category: 'Technology',
+    organizer: 'Web3 Foundation'
+  },
+  { 
+    id: 'event_2', 
+    title: 'NFT Art Exhibition Delhi', 
+    price: 800, 
+    totalTickets: 300, 
+    ticketsMinted: 180, 
+    date: '2024-07-20T18:00:00Z', 
+    venue: 'Delhi Art Gallery', 
+    city: 'Delhi',
+    description: 'Showcase of emerging NFT artists and digital art collections with live minting sessions.',
+    image: '#ec4899',
+    category: 'Art',
+    organizer: 'Digital Art Collective'
+  },
+  { 
+    id: 'event_3', 
+    title: 'Blockchain Bootcamp IIT Bombay', 
+    price: 5000, 
+    totalTickets: 100, 
+    ticketsMinted: 45, 
+    date: '2024-08-05T09:00:00Z', 
+    venue: 'IIT Bombay Campus', 
+    city: 'Mumbai',
+    description: 'Intensive 3-day blockchain development course covering Solidity, DeFi, and dApp development.',
+    image: '#10b981',
+    category: 'Education',
+    organizer: 'IIT Bombay'
+  },
+  { 
+    id: 'event_4', 
+    title: 'DeFi Conference Bangalore', 
+    price: 1500, 
+    totalTickets: 500, 
+    ticketsMinted: 320, 
+    date: '2024-09-10T14:00:00Z', 
+    venue: 'Bangalore Tech Park', 
+    city: 'Bangalore',
+    description: 'Explore the future of decentralized finance with industry leaders and protocol developers.',
+    image: '#f59e0b',
+    category: 'Finance',
+    organizer: 'DeFi Alliance'
+  },
+  { 
+    id: 'event_5', 
+    title: 'Crypto Gaming Expo Hyderabad', 
+    price: 1200, 
+    totalTickets: 800, 
+    ticketsMinted: 600, 
+    date: '2024-10-15T11:00:00Z', 
+    venue: 'Hyderabad Gaming Arena', 
+    city: 'Hyderabad',
+    description: 'Gaming meets blockchain - discover play-to-earn games, NFT gaming assets, and metaverse experiences.',
+    image: '#8b5cf6',
+    category: 'Gaming',
+    organizer: 'GameFi Studios'
+  },
+  { 
+    id: 'event_6', 
+    title: 'Smart Contract Security Workshop', 
+    price: 3500, 
+    totalTickets: 150, 
+    ticketsMinted: 89, 
+    date: '2024-11-20T10:00:00Z', 
+    venue: 'Chennai Tech Hub', 
+    city: 'Chennai',
+    description: 'Learn smart contract auditing, security best practices, and vulnerability assessment techniques.',
+    image: '#ef4444',
+    category: 'Security',
+    organizer: 'CyberSec Academy'
+  },
+  { 
+    id: 'event_7', 
+    title: 'Kolkata Web3 Meetup', 
+    price: 0, 
+    totalTickets: 200, 
+    ticketsMinted: 150, 
+    date: '2024-12-05T17:00:00Z', 
+    venue: 'Salt Lake Sector V', 
+    city: 'Kolkata',
+    description: 'Networking event for blockchain enthusiasts and developers in the City of Joy.',
+    image: '#31bbaf',
+    category: 'Technology',
+    organizer: 'Kolkata Crypto'
+  },
+  { 
+    id: 'event_8', 
+    title: 'NFT Music Fest Kolkata', 
+    price: 1200, 
+    totalTickets: 500, 
+    ticketsMinted: 120, 
+    date: '2025-01-12T19:00:00Z', 
+    venue: 'Nicco Park Big Lawn', 
+    city: 'Kolkata',
+    description: 'Live music performances with NFT-gated access and exclusive artist drops.',
+    image: '#a855f7',
+    category: 'Entertainment',
+    organizer: 'Music3'
+  }
+];
+
+const MOCK_RESALE_TICKETS = [
+  {
+    id: 'resale_1',
+    eventId: 'event_1',
+    title: 'Web3 Summit Mumbai (RESALE)',
+    price: 2500,
+    seller: '0x742d...44e',
+    venue: 'Mumbai Convention Centre',
+    city: 'Mumbai',
+    date: '2024-06-15T10:00:00Z',
+    category: 'Technology',
+    image: 'linear-gradient(135deg, #4a90e2, #000)',
+    description: 'Selling 1 ticket at original price. Unable to attend due to work travel.',
+    isResale: true
+  },
+  {
+    id: 'resale_2',
+    eventId: 'event_7',
+    title: 'Kolkata Web3 Meetup (RESALE)',
+    price: 0,
+    seller: '0x123a...bc9',
+    venue: 'Salt Lake Sector V',
+    city: 'Kolkata',
+    date: '2024-12-05T17:00:00Z',
+    category: 'Technology',
+    image: 'linear-gradient(135deg, #31bbaf, #000)',
+    description: 'Free ticket resale. Just want it to go to someone who can attend!',
+    isResale: true
+  }
+];
 
 const DashboardPage = () => {
-  const navigate = useNavigate();
-  const { walletAddress, isAuthenticated, token } = useAuth();
-
-  useEffect(() => {
-    if (!isAuthenticated) navigate('/auth', { replace: true });
-  }, [isAuthenticated, navigate]);
-
+  const { user, walletAddress, token } = useAuth();
+  const { selectedCity } = useAppLocation();
+  const { selectedCrypto, setSelectedCrypto, convertInrToCrypto, cryptoList } = useCurrency();
   const [events, setEvents] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [resaleTickets, setResaleTickets] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
-  const [eventsError, setEventsError] = useState('');
-
-  // Booking flow
+  const [filteredEvents, setFilteredEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [bookingStep, setBookingStep] = useState(null); // null | 'identity' | 'otp'
-  const [identityId, setIdentityId] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpMessage, setOtpMessage] = useState('');
-  const [bookingError, setBookingError] = useState('');
-  const [bookingLoading, setBookingLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [priceRange, setPriceRange] = useState({ min: 0, max: 100000 });
+  const [dateFilter, setDateFilter] = useState('All');
+  const [marketType, setMarketType] = useState('Official');
+  const [ticketQuantity, setTicketQuantity] = useState(1);
+  const [showAadhaarModal, setShowAadhaarModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [bookingFlow, setBookingFlow] = useState({
+    event: null,
+    identityVerified: false,
+    identity: null,
+  });
 
+  // Fetch real events and resale listings on mount
   useEffect(() => {
-    const fetchEvents = async () => {
-      setLoadingEvents(true); setEventsError('');
+    const fetchData = async () => {
+      setLoadingEvents(true);
       try {
-        const res = await fetch(`${API_BASE}/events`);
-        const data = await res.json();
-        if (!data.success) throw new Error(data.message || 'Failed to load events');
-        setEvents(data.events || []);
+        const [evRes, resaleRes] = await Promise.all([
+          fetch(`${API_BASE}/events`),
+          fetch(`${API_BASE}/tickets/marketplace`),
+        ]);
+        const evData = await evRes.json();
+        const resaleData = await resaleRes.json();
+        if (evData.success) setEvents((evData.events || []).map(normalizeEvent));
+        if (resaleData.success) setResaleTickets((resaleData.tickets || []).map(normalizeResale));
       } catch (err) {
-        setEventsError(err.message);
+        console.error('Failed to fetch events:', err);
+        // Fall back to mock data on network error
+        setEvents(MOCK_EVENTS);
       } finally {
         setLoadingEvents(false);
       }
     };
-    fetchEvents();
+    fetchData();
   }, []);
 
-  const handleRequestOtp = async () => {
-    if (!identityId) { setBookingError('Please enter your Identity ID'); return; }
-    setBookingLoading(true); setBookingError('');
-    try {
-      const res = await fetch(`${API_BASE}/tickets/request`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event_id: selectedEvent.eventId, identity_id: identityId }),
+  // Get unique categories
+  const categories = ['All', ...new Set(events.map(event => event.category))];
+
+  // Filter events based on search, category, city, price, date, and market type
+  useEffect(() => {
+    let baseData = marketType === 'Official' ? events : resaleTickets;
+    let filtered = baseData;
+    
+    // City filter
+    if (selectedCity) {
+      filtered = filtered.filter(event => event.city === selectedCity);
+    }
+
+    // Search filter
+    if (searchTerm) {
+      filtered = filtered.filter(event => 
+        event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        event.venue.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        event.description.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    // Category filter
+    if (selectedCategory !== 'All') {
+      filtered = filtered.filter(event => event.category === selectedCategory);
+    }
+
+    // Price filter
+    filtered = filtered.filter(event => 
+      event.price >= priceRange.min && event.price <= priceRange.max
+    );
+
+    // Date filter
+    if (dateFilter !== 'All') {
+      const now = new Date();
+      const today = new Date(now.setHours(0, 0, 0, 0));
+      
+      filtered = filtered.filter(event => {
+        const eventDate = new Date(event.date);
+        
+        if (dateFilter === 'Today') {
+          return eventDate.toDateString() === today.toDateString();
+        }
+        
+        if (dateFilter === 'This Week') {
+          const nextWeek = new Date(today);
+          nextWeek.setDate(today.getDate() + 7);
+          return eventDate >= today && eventDate <= nextWeek;
+        }
+        
+        if (dateFilter === 'This Month') {
+          const nextMonth = new Date(today);
+          nextMonth.setMonth(today.getMonth() + 1);
+          return eventDate >= today && eventDate <= nextMonth;
+        }
+        
+        return true;
       });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message || 'Failed to request OTP');
-      setOtpMessage(data.message || 'OTP sent');
-      setBookingStep('otp'); setOtp('');
-    } catch (err) { setBookingError(err.message); }
-    finally { setBookingLoading(false); }
+    }
+    
+    setFilteredEvents(filtered);
+  }, [searchTerm, selectedCategory, selectedCity, priceRange, dateFilter, marketType, events]);
+
+  // Format date for display
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return {
+      date: date.toLocaleDateString('en-IN', { 
+        day: 'numeric', 
+        month: 'short', 
+        year: 'numeric' 
+      }),
+      time: date.toLocaleTimeString('en-IN', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      })
+    };
   };
 
-  const handleConfirmTicket = async () => {
-    if (!otp) { setBookingError('OTP required'); return; }
-    setBookingLoading(true); setBookingError('');
-    try {
-      const res = await fetch(`${API_BASE}/tickets/confirm`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event_id: selectedEvent.eventId, identity_id: identityId, otp }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message || 'Failed to confirm booking');
-      alert(`🎉 Ticket booked! Token ID: ${data.token_id}`);
-      setBookingStep(null); setSelectedEvent(null); setIdentityId(''); setOtp('');
-      navigate('/tickets');
-    } catch (err) { setBookingError(err.message); }
-    finally { setBookingLoading(false); }
+  const handleBookTicket = () => {
+    setBookingFlow({
+      event: selectedEvent,
+      identityVerified: false,
+      identity: null,
+    });
+    setShowAadhaarModal(true);
   };
 
-  const filteredEvents = useMemo(() =>
-    events.filter(e => e.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      e.venue?.toLowerCase().includes(searchTerm.toLowerCase())),
-    [events, searchTerm]
-  );
+  const handleIdentityVerified = (identityData) => {
+    setBookingFlow(prev => ({
+      ...prev,
+      identityVerified: true,
+      identity: identityData,
+    }));
+    setShowAadhaarModal(false);
+    setShowPaymentModal(true);
+  };
 
-  if (!isAuthenticated) return null;
+  const handlePaymentSuccess = (paymentData) => {
+    toast.success('Ticket Purchase Successful!');
+    setShowPaymentModal(false);
+    setSelectedEvent(null);
+    setBookingFlow({
+      event: null,
+      identityVerified: false,
+      identity: null,
+    });
+  };
 
   return (
-    <div className="animate-fadeIn min-h-screen bg-gray-50 dark:bg-gray-900 dark-transition">
-      <div className="max-w-6xl mx-auto px-4 py-10">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white mb-2">🎪 Events</h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Browse and book tickets for upcoming events
-          </p>
-        </div>
-
-        {/* Search */}
-        <div className="mb-8 flex gap-3">
-          <div className="relative flex-1 max-w-md">
-            <input type="text" placeholder="Search events..."
-              value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-3 pl-10 rounded-full border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <svg className="w-5 h-5 absolute left-3 top-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </div>
-          <Link to="/marketplace"
-            className="flex items-center gap-2 px-4 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-full text-sm font-semibold transition-colors">
-            🏪 Marketplace
-          </Link>
-        </div>
-
-        {loadingEvents && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1,2,3,4,5,6].map(i => <div key={i} className="shimmer h-72 rounded-xl" />)}
-          </div>
-        )}
-
-        {eventsError && (
-          <div className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 p-4 rounded-xl mb-4">{eventsError}</div>
-        )}
-
-        {!loadingEvents && filteredEvents.length === 0 && (
-          <div className="text-center py-20 text-gray-500 dark:text-gray-400">
-            <div className="text-5xl mb-4">🔍</div>
-            <p>No events found</p>
-          </div>
-        )}
-
-        {!loadingEvents && filteredEvents.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredEvents.map((event, index) => {
-              const dateStr = Number.isFinite(Number(event.date))
-                ? new Date(Number(event.date) * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                : 'TBA';
-              const bgColor = COLORS[index % COLORS.length];
-              const total = Number(event.totalTickets);
-              const minted = Number(event.ticketsMinted);
-              const pct = total > 0 ? Math.round((minted / total) * 100) : 0;
-              const soldOut = minted >= total;
-
-              return (
-                <div key={event.eventId} className="event-card bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-md">
-                  <div className="relative h-44 cursor-pointer" style={{ background: `linear-gradient(135deg, ${bgColor}99, ${bgColor})` }}
-                    onClick={() => navigate(`/event/${event.eventId}`)}>
-                    {event.photoUrl && (
-                      <img src={event.photoUrl} alt={event.title} className="absolute inset-0 w-full h-full object-cover"
-                        onError={e => { e.target.style.display = 'none'; }} />
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                    <div className="absolute top-3 right-3 bg-blue-600 text-white px-2.5 py-1 rounded-full text-xs font-bold">
-                      ₹{Number(event.price)}
-                    </div>
-                    {soldOut && (
-                      <div className="absolute top-3 left-3 bg-red-500 text-white px-2.5 py-1 rounded-full text-xs font-bold">SOLD OUT</div>
-                    )}
-                    <div className="absolute bottom-3 left-3 text-white">
-                      <h3 className="text-lg font-bold leading-tight">{event.title}</h3>
-                    </div>
-                  </div>
-                  <div className="p-4">
-                    <div className="text-gray-600 dark:text-gray-400 text-sm mb-1">📅 {dateStr}</div>
-                    <div className="text-gray-600 dark:text-gray-400 text-sm mb-3">📍 {event.venue}</div>
-                    <div className="mb-4">
-                      <div className="flex justify-between text-xs text-gray-400 mb-1">
-                        <span>{total - minted} left</span>
-                        <span>{pct}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-1.5">
-                        <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, background: pct > 80 ? '#ef4444' : '#3b82f6' }} />
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => { setSelectedEvent(event); setBookingStep('identity'); setIdentityId(''); setOtp(''); setBookingError(''); }}
-                      disabled={soldOut}
-                      className="w-full py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 text-white rounded-full text-sm font-semibold transition-colors"
-                    >
-                      {soldOut ? 'Sold Out' : 'Book Now'}
-                    </button>
-                  </div>
+    <div style={{ minHeight: 'calc(100vh - 60px)', background: 'var(--bg)', padding: '2rem' }}>
+      
+      {/* 2-Column Layout */}
+      <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', gap: '30px', flexDirection: 'row', flexWrap: 'wrap' }}>
+        
+        {/* LEFT SIDEBAR (Filters) */}
+        <div style={{ flex: '1 1 300px', maxWidth: '350px' }}>
+          <div className="brutal-card" style={{ padding: '24px', position: 'sticky', top: '80px' }}>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '24px', marginBottom: '8px', textTransform: 'uppercase' }}>Discover Events</h2>
+            <p style={{ color: 'var(--muted)', fontSize: '12px', marginBottom: '24px' }}>Browse and book NFT tickets for Web3 events</p>
+            
+            {/* Search */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', textTransform: 'uppercase' }}>Search</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  placeholder="Events, venues, topics..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 12px 12px 40px',
+                    border: '2px solid var(--border)',
+                    background: 'var(--input-bg)',
+                    color: 'var(--text)',
+                    fontSize: '14px',
+                    fontFamily: 'var(--font-mono)',
+                    outline: 'none'
+                  }}
+                  onFocus={e => e.target.style.borderColor = 'var(--primary)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                />
+                <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }}>
+                  <Icon.Search />
                 </div>
-              );
-            })}
+              </div>
+            </div>
+
+            {/* Market Type Toggle */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', textTransform: 'uppercase' }}>Market Type</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {['Official', 'Resale'].map(type => (
+                  <button
+                    key={type}
+                    onClick={() => setMarketType(type)}
+                    style={{
+                      flex: 1,
+                      padding: '10px',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      textTransform: 'uppercase',
+                      background: marketType === type ? 'var(--primary)' : 'var(--surface)',
+                      color: marketType === type ? '#000' : 'var(--text)',
+                      border: '2px solid var(--border)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Category Filter */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', textTransform: 'uppercase' }}>Category</label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '2px solid var(--border)',
+                  background: 'var(--input-bg)',
+                  color: 'var(--text)',
+                  fontSize: '14px',
+                  fontFamily: 'var(--font-mono)',
+                  outline: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                {categories.map(category => (
+                  <option key={category} value={category}>
+                    {category === 'All' ? 'All Categories' : category}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Price Filter */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', textTransform: 'uppercase' }}>
+                Price Range (₹{priceRange.min} - ₹{priceRange.max})
+              </label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input
+                  type="number"
+                  placeholder="Min"
+                  value={priceRange.min}
+                  onChange={(e) => setPriceRange(prev => ({ ...prev, min: parseInt(e.target.value) || 0 }))}
+                  style={{
+                    width: '50%',
+                    padding: '8px',
+                    border: '2px solid var(--border)',
+                    background: 'var(--input-bg)',
+                    color: 'var(--text)',
+                    fontSize: '12px',
+                    fontFamily: 'var(--font-mono)',
+                    outline: 'none'
+                  }}
+                />
+                <span style={{ fontWeight: 'bold' }}>-</span>
+                <input
+                  type="number"
+                  placeholder="Max"
+                  value={priceRange.max}
+                  onChange={(e) => setPriceRange(prev => ({ ...prev, max: parseInt(e.target.value) || 0 }))}
+                  style={{
+                    width: '50%',
+                    padding: '8px',
+                    border: '2px solid var(--border)',
+                    background: 'var(--input-bg)',
+                    color: 'var(--text)',
+                    fontSize: '12px',
+                    fontFamily: 'var(--font-mono)',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+              <input 
+                type="range" 
+                min="0" 
+                max="10000" 
+                step="500"
+                value={priceRange.max}
+                onChange={(e) => setPriceRange(prev => ({ ...prev, max: parseInt(e.target.value) }))}
+                style={{ width: '100%', marginTop: '12px', cursor: 'pointer', accentColor: 'var(--primary)' }}
+              />
+            </div>
+
+            {/* Date Filter */}
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', textTransform: 'uppercase' }}>Timeframe</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {['All', 'Today', 'This Week', 'This Month'].map(period => (
+                  <button
+                    key={period}
+                    onClick={() => setDateFilter(period)}
+                    style={{
+                      flex: '1 1 45%',
+                      padding: '8px',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      textTransform: 'uppercase',
+                      background: dateFilter === period ? 'var(--primary)' : 'var(--surface)',
+                      color: dateFilter === period ? '#000' : 'var(--text)',
+                      border: '2px solid var(--border)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      boxShadow: dateFilter === period ? '2px 2px 0 var(--border)' : 'none',
+                      transform: dateFilter === period ? 'translate(-1px, -1px)' : 'none'
+                    }}
+                  >
+                    {period}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            {/* Results Count */}
+            <div style={{ padding: '12px', background: 'var(--surface)', border: '2px dashed var(--border)', textAlign: 'center', fontSize: '12px', fontWeight: 'bold' }}>
+              {filteredEvents.length} EVENT{filteredEvents.length !== 1 ? 'S' : ''} FOUND
+            </div>
           </div>
-        )}
+        </div>
+
+        {/* RIGHT CONTENT (Event Grid) */}
+        <div style={{ flex: '3 1 0%' }}>
+          {filteredEvents.length === 0 ? (
+            <div className="brutal-card" style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--muted)' }}>
+              <div style={{ fontSize: '32px', marginBottom: '1rem' }}>🔍</div>
+              <h3 style={{ marginTop: '1rem', marginBottom: '0.5rem', textTransform: 'uppercase' }}>No events found</h3>
+              <p>Try adjusting your search or filter criteria</p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px' }}>
+              {filteredEvents.map(event => (
+                <EventCard 
+                  key={event.id} 
+                  event={event} 
+                  onSelect={setSelectedEvent} 
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Booking Modal */}
-      {selectedEvent && bookingStep && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md shadow-2xl animate-slideUp">
-            <h2 className="text-xl font-bold mb-1 text-gray-800 dark:text-white">
-              {bookingStep === 'identity' ? '🔐 Verify Identity' : '📱 Enter OTP'}
-            </h2>
-            <p className="text-gray-500 dark:text-gray-400 text-sm mb-5">
-              {selectedEvent.title} — ₹{Number(selectedEvent.price)}
-            </p>
-
-            {bookingStep === 'identity' && (
-              <input type="text" placeholder="Enter your Identity ID (Aadhaar)"
-                value={identityId} onChange={e => setIdentityId(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none mb-3"
-              />
-            )}
-
-            {bookingStep === 'otp' && (
-              <>
-                <div className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 p-3 rounded-xl text-sm mb-3">
-                  {otpMessage}
-                </div>
-                <input type="text" placeholder="6-digit OTP"
-                  value={otp} onChange={e => setOtp(e.target.value.slice(0, 6))} maxLength="6"
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none mb-3 text-center text-2xl tracking-widest"
-                />
-              </>
-            )}
-
-            {bookingError && (
-              <div className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 p-3 rounded-xl text-sm mb-3">
-                {bookingError}
-              </div>
-            )}
-
-            <div className="flex gap-3">
-              <button onClick={() => { setBookingStep(null); setSelectedEvent(null); setBookingError(''); }}
-                className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium">
-                Cancel
+      {/* Event Detail Modal */}
+      {selectedEvent && (
+        <div onClick={() => setSelectedEvent(null)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div onClick={e => e.stopPropagation()} className="brutal-card" style={{ maxWidth: '700px', width: '100%', maxHeight: '90vh', overflow: 'auto' }}>
+            
+            {/* Modal Header Image */}
+            <div style={{ height: '250px', background: selectedEvent.image, position: 'relative', borderBottom: '3px solid var(--border)' }}>
+              <button onClick={() => setSelectedEvent(null)} style={{ position: 'absolute', top: '16px', right: '16px', background: '#000', color: '#fff', border: '2px solid #fff', width: '36px', height: '36px', cursor: 'pointer', fontSize: '20px', fontWeight: 'bold' }}>
+                ×
               </button>
-              <button onClick={bookingStep === 'identity' ? handleRequestOtp : handleConfirmTicket}
-                disabled={bookingLoading}
-                className="flex-1 py-2.5 bms-button rounded-xl font-semibold disabled:opacity-50">
-                {bookingLoading ? 'Processing...' : bookingStep === 'identity' ? 'Send OTP' : 'Confirm Booking'}
+              <div style={{ position: 'absolute', bottom: '16px', left: '16px', background: '#000', color: '#fff', padding: '8px 16px', border: '2px solid #fff', fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                {selectedEvent.category}
+              </div>
+            </div>
+            
+            {/* Modal Content */}
+            <div style={{ padding: '30px' }}>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', marginBottom: '10px', textTransform: 'uppercase' }}>
+                {selectedEvent.title}
+              </h2>
+              <p style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '20px', textTransform: 'uppercase', fontWeight: 'bold' }}>
+                Organized by {selectedEvent.organizer}
+              </p>
+              
+              <p style={{ fontSize: '14px', color: 'var(--text)', marginBottom: '30px', lineHeight: 1.6 }}>
+                {selectedEvent.description}
+              </p>
+              
+              {/* Event Details Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', fontSize: '13px', background: 'var(--bg)', border: '3px solid var(--border)', padding: '20px', marginBottom: '30px' }}>
+                <div>
+                  <div style={{ color: 'var(--muted)', marginBottom: '6px', textTransform: 'uppercase', fontWeight: 'bold' }}>Date & Time</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '15px' }}>{formatDate(selectedEvent.date).date} • {formatDate(selectedEvent.date).time}</div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--muted)', marginBottom: '6px', textTransform: 'uppercase', fontWeight: 'bold' }}>Venue</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '15px' }}>{selectedEvent.venue}</div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--muted)', marginBottom: '6px', textTransform: 'uppercase', fontWeight: 'bold' }}>Price</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '20px', color: 'var(--primary)' }}>₹{selectedEvent.price.toLocaleString()}</div>
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '6px',
+                      background: 'var(--surface)',
+                      padding: '4px 10px',
+                      border: '2px solid var(--border)',
+                      width: 'fit-content'
+                    }}>
+                      <select 
+                        value={selectedCrypto}
+                        onChange={(e) => setSelectedCrypto(e.target.value)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--primary)',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          outline: 'none'
+                        }}
+                      >
+                        {cryptoList.map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      <span style={{ fontSize: '13px', fontWeight: 'bold' }}>
+                        {CRYPTO_CONFIG[selectedCrypto].symbol} {convertInrToCrypto(selectedEvent.price, selectedCrypto)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--muted)', marginBottom: '6px', textTransform: 'uppercase', fontWeight: 'bold' }}>Availability</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '15px' }}>
+                    {selectedEvent.isResale 
+                      ? '1 Ticket Available' 
+                      : `${selectedEvent.totalTickets - selectedEvent.ticketsMinted} / ${selectedEvent.totalTickets}`
+                    }
+                  </div>
+                </div>
+
+                {/* Quantity Selector */}
+                <div style={{ gridColumn: 'span 2' }}>
+                  <div style={{ color: 'var(--muted)', marginBottom: '8px', textTransform: 'uppercase', fontWeight: 'bold' }}>
+                    Select Quantity (Max {selectedEvent.isResale ? 1 : 5})
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    <div style={{ display: 'flex', border: '3px solid var(--border)', background: 'var(--bg)' }}>
+                      <button 
+                        onClick={() => setTicketQuantity(Math.max(1, ticketQuantity - 1))}
+                        style={{ padding: '8px 20px', background: 'transparent', border: 'none', color: 'var(--text)', cursor: 'pointer', fontWeight: 'bold', fontSize: '20px' }}
+                      >-</button>
+                      <div style={{ padding: '8px 20px', borderLeft: '3px solid var(--border)', borderRight: '3px solid var(--border)', fontWeight: 'bold', minWidth: '50px', textAlign: 'center', fontSize: '18px' }}>
+                        {ticketQuantity}
+                      </div>
+                      <button 
+                        onClick={() => setTicketQuantity(Math.min(selectedEvent.isResale ? 1 : 5, ticketQuantity + 1))}
+                        style={{ padding: '8px 20px', background: 'transparent', border: 'none', color: 'var(--text)', cursor: 'pointer', fontWeight: 'bold', fontSize: '20px' }}
+                      >+</button>
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 'bold' }}>
+                      ₹{(selectedEvent.price * ticketQuantity).toLocaleString()} TOTAL
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Book Button */}
+              <button 
+                onClick={() => {
+                  const maxQty = selectedEvent.isResale ? 1 : (selectedEvent.totalTickets - selectedEvent.ticketsMinted);
+                  if (maxQty === 0) {
+                    toast.success('Joined Waitlist! We will notify you when a resale ticket is available.', {
+                      icon: '🔔',
+                      style: { border: '2px solid var(--primary)', background: 'var(--bg)', color: 'var(--text)' }
+                    });
+                  } else {
+                    handleBookTicket();
+                  }
+                }}
+                className="brutal-btn"
+                style={{ 
+                  width: '100%', padding: '16px', 
+                  background: selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 ? 'var(--bg)' : 'var(--primary)', 
+                  color: selectedEvent.totalTickets - selectedEvent.ticketsMinted === 0 ? 'var(--text)' : '#000', 
+                  border: '3px solid var(--border)', cursor: 'pointer', 
+                  fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', textTransform: 'uppercase', fontWeight: 'bold'
+                }}
+              >
+                {((selectedEvent.isResale ? 1 : (selectedEvent.totalTickets - selectedEvent.ticketsMinted)) === 0) 
+                  ? <><Icon.Bell /> JOIN WAITLIST</>
+                  : <><Icon.Ticket /> BOOK {ticketQuantity} {ticketQuantity === 1 ? 'TICKET' : 'TICKETS'} • ₹{(selectedEvent.price * ticketQuantity).toLocaleString()}</>
+                }
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Modals */}
+      <AadhaarModal isOpen={showAadhaarModal} onClose={() => setShowAadhaarModal(false)} onVerified={handleIdentityVerified} eventId={bookingFlow.event?.id} />
+      <PaymentModal isOpen={showPaymentModal} onClose={() => setShowPaymentModal(false)} event={bookingFlow.event} userWallet={walletAddress} identity={bookingFlow.identity} quantity={ticketQuantity} onPaymentSuccess={handlePaymentSuccess} />
     </div>
   );
 };

@@ -1,92 +1,125 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { LocationProvider } from './context/LocationContext';
+import { CurrencyProvider } from './context/CurrencyContext';
 import AuthPage from './pages/AuthPage';
-import HomePage from './pages/HomePage';
-import EventsPage from './pages/EventsPage';
-import EventDetailsPage from './pages/EventDetailsPage';
+import DashboardPage from './pages/DashboardPage';
+import ProfilePage from './pages/ProfilePage';
 import TicketsPage from './pages/TicketsPage';
-import MarketplacePage from './pages/MarketplacePage';
-import ManageEventsPage from './pages/ManageEventsPage';
 import Navbar from './components/Navbar';
-import Footer from './components/Footer';
+import Loader from './components/Loader';
+import { useAuth } from './context/AuthContext';
+import './App.css';
 
-const ProtectedLayout = ({ children }) => {
-  const { isAuthenticated } = useAuth();
-  if (!isAuthenticated) return <Navigate to="/auth" replace />;
+// Main App Content with Routing
+const AppContent = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <Loader fullScreen text="Loading BlockMyShow..." />;
+  }
+
   return (
-    <div className="min-h-screen flex flex-col bg-white dark:bg-gray-900 dark-transition">
-      <Navbar />
-      <main className="flex-1">{children}</main>
-      <Footer />
+    <div style={{ 
+      fontFamily: 'Space Mono, monospace', 
+      minHeight: '100vh', 
+      background: 'var(--bg)', 
+      color: 'var(--text)' 
+    }}>
+      {isAuthenticated ? (
+        <>
+          <Navbar />
+          <Routes>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/tickets" element={<TicketsPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </>
+      ) : (
+        <Routes>
+          <Route path="*" element={<AuthPage />} />
+        </Routes>
+      )}
     </div>
   );
 };
 
-const PublicLayout = ({ children }) => (
-  <div className="min-h-screen flex flex-col bg-white dark:bg-gray-900 dark-transition">
-    <Navbar />
-    <main className="flex-1">{children}</main>
-    <Footer />
-  </div>
-);
+import React from 'react';
 
-const AppContent = () => {
-  const { isAuthenticated, isLoading, isAdmin } = useAuth();
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-white dark:bg-gray-900">
-        <div className="text-center animate-fadeIn">
-          <div className="text-5xl mb-4">🎫</div>
-          <div className="text-gray-600 dark:text-gray-300 text-lg">Loading BlockMyShow...</div>
-        </div>
-      </div>
-    );
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
 
-  return (
-    <Routes>
-      {/* Auth */}
-      <Route path="/auth" element={
-        isAuthenticated ? <Navigate to="/" replace /> : <AuthPage />
-      } />
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
 
-      {/* Public routes with navbar */}
-      <Route path="/events" element={
-        <PublicLayout><EventsPage /></PublicLayout>
-      } />
-      <Route path="/event/:id" element={
-        <PublicLayout><EventDetailsPage /></PublicLayout>
-      } />
-      <Route path="/marketplace" element={
-        <PublicLayout><MarketplacePage /></PublicLayout>
-      } />
+  componentDidCatch(error, errorInfo) {
+    this.setState({ errorInfo });
+    console.error("Caught error:", error, errorInfo);
+  }
 
-      {/* Protected routes */}
-      <Route path="/" element={
-        <ProtectedLayout><HomePage /></ProtectedLayout>
-      } />
-      <Route path="/tickets" element={
-        <ProtectedLayout><TicketsPage /></ProtectedLayout>
-      } />
-      {isAdmin && (
-        <Route path="/admin" element={
-          <ProtectedLayout><ManageEventsPage /></ProtectedLayout>
-        } />
-      )}
-
-      {/* Fallback */}
-      <Route path="*" element={<Navigate to={isAuthenticated ? "/" : "/auth"} replace />} />
-    </Routes>
-  );
-};
-
-function App() {
-  return (
-    <Router>
-      <AppContent />
-    </Router>
-  );
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '2rem', color: 'red', fontFamily: 'monospace' }}>
+          <h1>React Error:</h1>
+          <h2>{this.state.error?.toString()}</h2>
+          <pre style={{ whiteSpace: 'pre-wrap', fontSize: '12px' }}>
+            {this.state.error?.stack}
+            <br />
+            {this.state.errorInfo?.componentStack}
+          </pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
-export default App;
+import { Toaster } from 'react-hot-toast';
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <ThemeProvider>
+        <LocationProvider>
+          <CurrencyProvider>
+            <AuthProvider>
+            <Router>
+              <Toaster 
+                position="top-right"
+                toastOptions={{
+                  style: {
+                    background: '#000',
+                    color: '#fff',
+                    borderRadius: '4px',
+                    border: '2px solid #31bbaf',
+                    fontFamily: 'Space Mono, monospace',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    boxShadow: '4px 4px 0px #000',
+                  },
+                  success: {
+                    style: { border: '2px solid #31bbaf' },
+                    iconTheme: { primary: '#31bbaf', secondary: '#000' },
+                  },
+                  error: {
+                    style: { border: '2px solid #ef4444' },
+                    iconTheme: { primary: '#ef4444', secondary: '#000' },
+                  },
+                }}
+              />
+              <AppContent />
+            </Router>
+          </AuthProvider>
+        </CurrencyProvider>
+      </LocationProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
+  );
+}

@@ -1,5 +1,4 @@
-/* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useState } from 'react';
+import React, { createContext, useState, useEffect } from 'react';
 
 /**
  * AuthContext
@@ -10,19 +9,31 @@ import React, { createContext, useState } from 'react';
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(() => {
-    const storedUser = localStorage.getItem('auth_user');
-    return storedUser ? JSON.parse(storedUser) : null;
-  });
-  const [token, setToken] = useState(() => localStorage.getItem('auth_token'));
-  const [walletAddress, setWalletAddress] = useState(() => localStorage.getItem('wallet_address'));
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
+  const [walletAddress, setWalletAddress] = useState(null);
   const [accountType, setAccountType] = useState(() => localStorage.getItem('auth_account_type') || 'user');
-  const [isLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    const storedToken = localStorage.getItem('auth_token');
+    const storedUser = localStorage.getItem('auth_user');
+    const storedWallet = localStorage.getItem('wallet_address');
+    const storedType = localStorage.getItem('auth_account_type');
+
+    if (storedToken) {
+      setToken(storedToken);
+      setWalletAddress(storedWallet);
+      if (storedUser) setUser(JSON.parse(storedUser));
+      if (storedType) setAccountType(storedType);
+    }
+    setIsLoading(false);
+  }, []);
 
   const login = (userData, jwtToken, walletAddr, type = 'user') => {
     const resolvedWallet = walletAddr || userData?.wallet_address || userData?.walletAddress || null;
-
     setUser(userData);
     setToken(jwtToken);
     setWalletAddress(resolvedWallet);
@@ -33,12 +44,8 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('auth_token', jwtToken);
     localStorage.setItem('auth_user', JSON.stringify(userData));
     localStorage.setItem('auth_account_type', type);
-
-    if (resolvedWallet) {
-      localStorage.setItem('wallet_address', resolvedWallet);
-    } else {
-      localStorage.removeItem('wallet_address');
-    }
+    if (resolvedWallet) localStorage.setItem('wallet_address', resolvedWallet);
+    else localStorage.removeItem('wallet_address');
   };
 
   const logout = () => {
@@ -53,6 +60,10 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('auth_user');
     localStorage.removeItem('wallet_address');
     localStorage.removeItem('auth_account_type');
+    
+    import('react-hot-toast').then(({ default: toast }) => {
+      toast.success('Successfully logged out');
+    });
   };
 
   const setAuthError = (errorMessage) => {
@@ -65,6 +76,14 @@ export const AuthProvider = ({ children }) => {
 
   const isAuthenticated = !!token && !!user;
   const isAdmin = accountType === 'admin' || user?.role === 'super_admin';
+
+  const updateBlockCoins = (amount) => {
+    if (user) {
+      const updatedUser = { ...user, blockCoins: (user.blockCoins || 0) + amount };
+      setUser(updatedUser);
+      localStorage.setItem('auth_user', JSON.stringify(updatedUser));
+    }
+  };
 
   const value = {
     user,
@@ -80,6 +99,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     setAuthError,
     clearError,
+    updateBlockCoins
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

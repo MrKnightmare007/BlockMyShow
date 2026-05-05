@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+const API_BASE = 'http://localhost:5000/api';
+
 // Icons
 const Icon = {
   X: () => (
@@ -35,13 +37,14 @@ const MOCK_AADHAAR_REGISTRY = {
   }
 };
 
-const AadhaarModal = ({ isOpen, onClose, onVerified }) => {
+const AadhaarModal = ({ isOpen, onClose, onVerified, eventId }) => {
   const [step, setStep] = useState(1); // 1: Enter Aadhaar, 2: Enter OTP
   const [aadhaarId, setAadhaarId] = useState('');
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [identity, setIdentity] = useState(null);
+  const [otpSent, setOtpSent] = useState(false);
 
   // Reset state when modal opens/closes
   const resetState = () => {
@@ -51,6 +54,7 @@ const AadhaarModal = ({ isOpen, onClose, onVerified }) => {
     setLoading(false);
     setError('');
     setIdentity(null);
+    setOtpSent(false);
   };
 
   const handleClose = () => {
@@ -75,7 +79,19 @@ const AadhaarModal = ({ isOpen, onClose, onVerified }) => {
         throw new Error('Aadhaar number not found in registry. Try: 111111111111 or 222222222222');
       }
 
-      await new Promise(resolve => setTimeout(resolve, 600));
+      // Call backend to send OTP
+      const response = await fetch(`${API_BASE}/identity/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aadhaarId }),
+      });
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to send OTP');
+      }
+
+      setOtpSent(true);
       setStep(2);
       setIdentity(mockIdentity);
     } catch (err) {
@@ -96,10 +112,16 @@ const AadhaarModal = ({ isOpen, onClose, onVerified }) => {
     setError('');
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 600));
+      // Call backend to verify OTP
+      const response = await fetch(`${API_BASE}/identity/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aadhaarId, otp }),
+      });
 
-      if (otp !== '123456') {
-        throw new Error('Invalid OTP. Use 123456 for the mock verification.');
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Invalid OTP');
       }
 
       // Identity verified successfully
@@ -143,27 +165,28 @@ const AadhaarModal = ({ isOpen, onClose, onVerified }) => {
       <div 
         onClick={e => e.stopPropagation()} 
         style={{ 
-          background: '#fff', 
-          border: '3px solid #000', 
+          background: 'var(--surface)', 
+          border: '3px solid var(--border)', 
           maxWidth: '500px', 
           width: '100%', 
-          boxShadow: '8px 8px 0 #000',
-          borderRadius: '8px',
+          boxShadow: '8px 8px 0 var(--border)',
+          borderRadius: '0px',
           overflow: 'hidden'
         }}
       >
         {/* Modal Header */}
         <div style={{
-          background: '#000',
-          color: '#fff',
+          background: 'var(--surface)',
+          color: 'var(--text)',
           padding: '20px',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center'
+          alignItems: 'center',
+          borderBottom: '3px solid var(--border)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Icon.Shield />
-            <h3 style={{ margin: 0, fontFamily: 'Syne, sans-serif' }}>
+            <h3 style={{ margin: 0, fontFamily: 'Syne, sans-serif', textTransform: 'uppercase', fontSize: '16px', fontWeight: 'bold' }}>
               Identity Verification
             </h3>
           </div>
@@ -172,7 +195,7 @@ const AadhaarModal = ({ isOpen, onClose, onVerified }) => {
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#fff',
+              color: 'var(--text)',
               cursor: 'pointer',
               padding: '4px'
             }}
@@ -193,34 +216,36 @@ const AadhaarModal = ({ isOpen, onClose, onVerified }) => {
             <div style={{
               width: '30px',
               height: '30px',
-              borderRadius: '50%',
-              background: '#000',
-              color: '#fff',
+              borderRadius: '0%',
+              background: 'var(--border)',
+              color: 'var(--surface)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: '12px',
-              fontWeight: 'bold'
+              fontWeight: 'bold',
+              border: '2px solid var(--border)'
             }}>
               1
             </div>
             <div style={{
               width: '40px',
               height: '2px',
-              background: step >= 2 ? '#000' : '#ddd',
+              background: step >= 2 ? 'var(--border)' : 'var(--muted)',
               margin: '0 10px'
             }} />
             <div style={{
               width: '30px',
               height: '30px',
-              borderRadius: '50%',
-              background: step >= 2 ? '#000' : '#ddd',
-              color: step >= 2 ? '#fff' : '#666',
+              borderRadius: '0%',
+              background: step >= 2 ? 'var(--border)' : 'transparent',
+              color: step >= 2 ? 'var(--surface)' : 'var(--muted)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: '12px',
-              fontWeight: 'bold'
+              fontWeight: 'bold',
+              border: '2px solid var(--border)'
             }}>
               2
             </div>
@@ -270,23 +295,26 @@ const AadhaarModal = ({ isOpen, onClose, onVerified }) => {
                 style={{
                   width: '100%',
                   padding: '12px',
-                  border: '2px solid #ddd',
-                  borderRadius: '6px',
+                  border: '2px solid var(--border)',
+                  borderRadius: '0px',
                   fontSize: '16px',
-                  fontFamily: 'monospace',
+                  fontFamily: 'var(--font-mono)',
                   letterSpacing: '2px',
-                  marginBottom: '20px'
+                  marginBottom: '20px',
+                  background: 'var(--input-bg)',
+                  color: 'var(--text)'
                 }}
                 maxLength={12}
               />
 
               <div style={{ 
                 fontSize: '12px', 
-                color: '#666',
+                color: 'var(--muted)',
                 marginBottom: '20px',
-                background: '#f8f9fa',
+                background: 'var(--surface)',
                 padding: '12px',
-                borderRadius: '6px'
+                border: '2px dashed var(--border)',
+                borderRadius: '0px'
               }}>
                 <strong>For testing, use:</strong><br/>
                 • 111111111111 (Rajesh Kumar)<br/>
@@ -374,13 +402,15 @@ const AadhaarModal = ({ isOpen, onClose, onVerified }) => {
                 style={{
                   width: '100%',
                   padding: '12px',
-                  border: '2px solid #ddd',
-                  borderRadius: '6px',
+                  border: '2px solid var(--border)',
+                  borderRadius: '0px',
                   fontSize: '18px',
-                  fontFamily: 'monospace',
+                  fontFamily: 'var(--font-mono)',
                   letterSpacing: '4px',
                   textAlign: 'center',
-                  marginBottom: '20px'
+                  marginBottom: '20px',
+                  background: 'var(--input-bg)',
+                  color: 'var(--text)'
                 }}
                 maxLength={6}
               />
