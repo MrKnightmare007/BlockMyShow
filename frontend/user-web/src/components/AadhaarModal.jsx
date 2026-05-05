@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 
 const API_BASE = 'http://localhost:5000/api';
 
@@ -6,8 +7,7 @@ const API_BASE = 'http://localhost:5000/api';
 const Icon = {
   X: () => (
     <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M18 6L6 18"/>
-      <path d="M6 6l12 12"/>
+      <path d="M18 6L6 18"/><path d="M6 6l12 12"/>
     </svg>
   ),
   Shield: () => (
@@ -21,79 +21,92 @@ const Icon = {
       <polyline points="22 4 12 14.01 9 11.01"/>
     </svg>
   ),
+  Ticket: () => (
+    <svg width="40" height="40" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2Z"/>
+    </svg>
+  ),
 };
 
-// Mock Aadhaar Registry (same as backend)
+// Mock Aadhaar registry — kept for the UI preview card only (backend has its own registry)
 const MOCK_AADHAAR_REGISTRY = {
-  '111111111111': {
-    name: 'RAJESH KUMAR',
-    phone: '+91-9876543210',
-    photo: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiBmaWxsPSIjNGE5MGUyIi8+Cjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+UkFKRVNIPC90ZXh0Pgo8L3N2Zz4K'
-  },
-  '222222222222': {
-    name: 'PRIYA SINGH',
-    phone: '+91-8765432109',
-    photo: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiBmaWxsPSIjZWM0ODk5Ii8+Cjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+UFJJWUE8L3RleHQ+Cjwvc3ZnPgo='
-  }
+  '111111111111': { name: 'RAJESH KUMAR', phone: '+91-9876543210', color: '#4a90e2' },
+  '222222222222': { name: 'PRIYA SINGH',  phone: '+91-8765432109', color: '#ec4899' },
 };
 
-const AadhaarModal = ({ isOpen, onClose, onVerified, eventId }) => {
-  const [step, setStep] = useState(1); // 1: Enter Aadhaar, 2: Enter OTP
+/**
+ * AadhaarModal
+ *
+ * Step 1 → POST /api/tickets/request  { event_id, identity_id }
+ *          Backend validates identity_id (Aadhaar) and sends OTP to registered phone.
+ *
+ * Step 2 → POST /api/tickets/confirm  { event_id, identity_id, otp }
+ *          Backend mints the NFT ticket on success.
+ *
+ * On success: calls onBookingComplete(result) and closes.
+ */
+const AadhaarModal = ({ isOpen, onClose, onBookingComplete, event }) => {
+  const { token } = useAuth();
+
+  const [step, setStep]           = useState(1);   // 1: Aadhaar input, 2: OTP, 3: Success
   const [aadhaarId, setAadhaarId] = useState('');
-  const [otp, setOtp] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [identity, setIdentity] = useState(null);
-  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp]             = useState('');
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState('');
+  const [preview, setPreview]     = useState(null); // local mock preview only
+  const [result, setResult]       = useState(null);
 
-  // Reset state when modal opens/closes
-  const resetState = () => {
-    setStep(1);
-    setAadhaarId('');
-    setOtp('');
-    setLoading(false);
-    setError('');
-    setIdentity(null);
-    setOtpSent(false);
+  const reset = () => {
+    setStep(1); setAadhaarId(''); setOtp('');
+    setLoading(false); setError(''); setPreview(null); setResult(null);
   };
 
-  const handleClose = () => {
-    resetState();
-    onClose();
-  };
+  const handleClose = () => { reset(); onClose(); };
 
-  // Step 1: Send OTP to Aadhaar-linked phone
-  const handleSendOTP = async () => {
-    if (!aadhaarId || aadhaarId.length !== 12) {
-      setError('Please enter a valid 12-digit Aadhaar number');
+  // ── Step 1: Check if identity exists, add if not, then POST /api/tickets/request ──────────────────────────────────────
+  const handleRequestOTP = async () => {
+    if (aadhaarId.length !== 12) {
+      setError('Please enter a valid 12-digit Aadhaar / identity number');
       return;
     }
-
     setLoading(true);
     setError('');
-
     try {
-      // Check if Aadhaar exists in mock registry
-      const mockIdentity = MOCK_AADHAAR_REGISTRY[aadhaarId];
-      if (!mockIdentity) {
-        throw new Error('Aadhaar number not found in registry. Try: 111111111111 or 222222222222');
-      }
-
-      // Call backend to send OTP
-      const response = await fetch(`${API_BASE}/identity/send-otp`, {
+      // First, ensure identity is added to system (required for ticket purchase)
+      const addIdentityRes = await fetch(`${API_BASE}/identity/add`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ aadhaarId }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          identity_id: aadhaarId,
+          // Backend will validate identity_id against Aadhaar registry
+        }),
       });
+      const addIdentityData = await addIdentityRes.json();
+      
+      // Even if identity add fails with 404 (not in registry), continue to ticket request
+      // Backend will check identity again and send appropriate error
+      
+      // Now request OTP for ticket purchase
+      const res = await fetch(`${API_BASE}/tickets/request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          event_id: event?.eventId ?? event?.id,
+          identity_id: aadhaarId,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'Failed to send OTP');
 
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to send OTP');
-      }
-
-      setOtpSent(true);
+      // Show a local identity preview if Aadhaar is in mock registry
+      setPreview(MOCK_AADHAAR_REGISTRY[aadhaarId] || null);
       setStep(2);
-      setIdentity(mockIdentity);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -101,41 +114,33 @@ const AadhaarModal = ({ isOpen, onClose, onVerified, eventId }) => {
     }
   };
 
-  // Step 2: Verify OTP and complete identity verification
-  const handleVerifyOTP = async () => {
-    if (!otp || otp.length !== 6) {
-      setError('Please enter a valid 6-digit OTP');
+  // ── Step 2: POST /api/tickets/confirm ──────────────────────────────────────
+  const handleConfirmOTP = async () => {
+    if (otp.length !== 6) {
+      setError('Please enter the 6-digit OTP');
       return;
     }
-
     setLoading(true);
     setError('');
-
     try {
-      // Call backend to verify OTP
-      const response = await fetch(`${API_BASE}/identity/verify-otp`, {
+      const res = await fetch(`${API_BASE}/tickets/confirm`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ aadhaarId, otp }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          event_id: event?.eventId ?? event?.id,
+          identity_id: aadhaarId,
+          otp,
+        }),
       });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'Invalid OTP');
 
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.error || 'Invalid OTP');
-      }
-
-      // Identity verified successfully
-      const verifiedIdentity = {
-        aadhaarId,
-        name: identity.name,
-        phone: identity.phone,
-        photo: identity.photo,
-        verified: true,
-        verifiedAt: new Date().toISOString()
-      };
-
-      onVerified(verifiedIdentity);
-      resetState();
+      setResult(data);
+      setStep(3);
+      if (onBookingComplete) onBookingComplete(data);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -146,337 +151,299 @@ const AadhaarModal = ({ isOpen, onClose, onVerified, eventId }) => {
   if (!isOpen) return null;
 
   return (
-    <div 
+    <div
       onClick={handleClose}
-      style={{ 
-        position: 'fixed', 
-        top: 0, 
-        left: 0, 
-        right: 0, 
-        bottom: 0, 
-        background: 'rgba(0,0,0,0.7)', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        zIndex: 1000,
-        padding: '20px'
+      style={{
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        background: 'rgba(0,0,0,0.75)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 1000, padding: '20px',
       }}
     >
-      <div 
-        onClick={e => e.stopPropagation()} 
-        style={{ 
-          background: 'var(--surface)', 
-          border: '3px solid var(--border)', 
-          maxWidth: '500px', 
-          width: '100%', 
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'var(--surface)',
+          border: '3px solid var(--border)',
           boxShadow: '8px 8px 0 var(--border)',
-          borderRadius: '0px',
-          overflow: 'hidden'
+          maxWidth: '480px', width: '100%',
+          borderRadius: '0px', overflow: 'hidden',
         }}
       >
-        {/* Modal Header */}
+        {/* ── Header ── */}
         <div style={{
-          background: 'var(--surface)',
-          color: 'var(--text)',
-          padding: '20px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          borderBottom: '3px solid var(--border)'
+          padding: '18px 20px',
+          borderBottom: '3px solid var(--border)',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Icon.Shield />
-            <h3 style={{ margin: 0, fontFamily: 'Syne, sans-serif', textTransform: 'uppercase', fontSize: '16px', fontWeight: 'bold' }}>
-              Identity Verification
+            <h3 style={{ margin: 0, fontFamily: 'Syne, sans-serif', textTransform: 'uppercase', fontSize: '15px', fontWeight: 'bold' }}>
+              Book Ticket — Identity Verify
             </h3>
           </div>
-          <button
-            onClick={handleClose}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--text)',
-              cursor: 'pointer',
-              padding: '4px'
-            }}
-          >
+          <button onClick={handleClose} style={{ background: 'transparent', border: 'none', color: 'var(--text)', cursor: 'pointer', padding: '4px' }}>
             <Icon.X />
           </button>
         </div>
 
-        {/* Modal Content */}
-        <div style={{ padding: '30px' }}>
-          {/* Progress Indicator */}
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            marginBottom: '30px',
-            justifyContent: 'center'
+        {/* ── Event Badge ── */}
+        {event && (
+          <div style={{
+            padding: '10px 20px',
+            background: 'var(--bg)',
+            borderBottom: '2px solid var(--border)',
+            fontSize: '12px', fontFamily: 'Space Mono, monospace',
+            color: 'var(--muted)', display: 'flex', justifyContent: 'space-between',
           }}>
-            <div style={{
-              width: '30px',
-              height: '30px',
-              borderRadius: '0%',
-              background: 'var(--border)',
-              color: 'var(--surface)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              border: '2px solid var(--border)'
-            }}>
-              1
-            </div>
-            <div style={{
-              width: '40px',
-              height: '2px',
-              background: step >= 2 ? 'var(--border)' : 'var(--muted)',
-              margin: '0 10px'
-            }} />
-            <div style={{
-              width: '30px',
-              height: '30px',
-              borderRadius: '0%',
-              background: step >= 2 ? 'var(--border)' : 'transparent',
-              color: step >= 2 ? 'var(--surface)' : 'var(--muted)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              border: '2px solid var(--border)'
-            }}>
-              2
-            </div>
+            <span>🎫 <strong style={{ color: 'var(--text)' }}>{event.title}</strong></span>
+            <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>
+              {event.price > 0 ? `₹${event.price.toLocaleString('en-IN')}` : 'FREE'}
+            </span>
           </div>
+        )}
 
+        {/* ── Step Progress ── */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '18px 20px 0' }}>
+          {[1, 2, 3].map((s, i) => (
+            <div key={s} style={{ display: 'flex', alignItems: 'center' }}>
+              <div style={{
+                width: '28px', height: '28px',
+                border: '2px solid var(--border)',
+                background: step >= s ? (step > s ? 'var(--primary)' : 'var(--border)') : 'transparent',
+                color: step >= s ? (step > s ? '#000' : 'var(--surface)') : 'var(--muted)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '11px', fontWeight: 'bold',
+                boxShadow: step === s ? '2px 2px 0 var(--border)' : 'none',
+              }}>
+                {step > s ? '✓' : s}
+              </div>
+              {i < 2 && (
+                <div style={{ width: '40px', height: '2px', background: step > s + 0.5 ? 'var(--primary)' : 'var(--border)', margin: '0 6px' }} />
+              )}
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '44px', fontSize: '10px', color: 'var(--muted)', padding: '4px 20px 0', fontFamily: 'Space Mono, monospace' }}>
+          <span>AADHAAR</span><span>OTP</span><span>DONE</span>
+        </div>
+
+        {/* ── Body ── */}
+        <div style={{ padding: '24px' }}>
+
+          {/* Error */}
           {error && (
-            <div style={{ 
-              background: '#fee2e2', 
-              color: '#dc2626', 
-              padding: '12px', 
-              marginBottom: '20px', 
-              fontSize: '14px', 
-              border: '2px solid #dc2626',
-              borderRadius: '6px'
+            <div style={{
+              background: '#1a0000', color: '#ff4444',
+              padding: '10px 14px', marginBottom: '18px',
+              fontSize: '13px', border: '2px solid #ff4444',
+              fontFamily: 'Space Mono, monospace',
             }}>
-              {error}
+              ⚠ {error}
             </div>
           )}
 
-          {/* Step 1: Enter Aadhaar Number */}
+          {/* ── STEP 1: Aadhaar input ── */}
           {step === 1 && (
             <div>
-              <h4 style={{ 
-                marginBottom: '10px',
-                fontSize: '16px'
-              }}>
-                Step 1: Enter Aadhaar Number
+              <h4 style={{ margin: '0 0 8px', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                Step 1: Enter Aadhaar / Identity ID
               </h4>
-              <p style={{ 
-                color: '#666', 
-                fontSize: '14px', 
-                marginBottom: '20px',
-                lineHeight: 1.4
-              }}>
-                Enter your 12-digit Aadhaar number to receive an OTP on your registered mobile number.
+              <p style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '18px', lineHeight: 1.5 }}>
+                Enter your 12-digit identity number. An OTP will be sent to your registered mobile.
               </p>
 
               <input
                 type="text"
+                inputMode="numeric"
                 placeholder="Enter 12-digit Aadhaar number"
                 value={aadhaarId}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, '').slice(0, 12);
-                  setAadhaarId(value);
+                onChange={e => {
+                  setAadhaarId(e.target.value.replace(/\D/g, '').slice(0, 12));
                   setError('');
                 }}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  border: '2px solid var(--border)',
-                  borderRadius: '0px',
-                  fontSize: '16px',
-                  fontFamily: 'var(--font-mono)',
-                  letterSpacing: '2px',
-                  marginBottom: '20px',
-                  background: 'var(--input-bg)',
-                  color: 'var(--text)'
-                }}
                 maxLength={12}
+                style={{
+                  width: '100%', padding: '12px',
+                  border: '2px solid var(--border)', borderRadius: '0',
+                  fontSize: '18px', fontFamily: 'Space Mono, monospace',
+                  letterSpacing: '4px', textAlign: 'center',
+                  background: 'var(--input-bg)', color: 'var(--text)',
+                  marginBottom: '14px', boxSizing: 'border-box',
+                }}
               />
 
-              <div style={{ 
-                fontSize: '12px', 
-                color: 'var(--muted)',
-                marginBottom: '20px',
-                background: 'var(--surface)',
-                padding: '12px',
-                border: '2px dashed var(--border)',
-                borderRadius: '0px'
+              {/* Mock hint */}
+              <div style={{
+                fontSize: '12px', color: 'var(--muted)',
+                marginBottom: '18px', padding: '10px 14px',
+                border: '2px dashed var(--border)', background: 'var(--bg)',
+                fontFamily: 'Space Mono, monospace', lineHeight: 1.7,
               }}>
-                <strong>For testing, use:</strong><br/>
-                • 111111111111 (Rajesh Kumar)<br/>
-                • 222222222222 (Priya Singh)
+                <strong style={{ color: 'var(--text)' }}>For testing, use:</strong><br />
+                • <span
+                    style={{ cursor: 'pointer', color: 'var(--primary)', textDecoration: 'underline' }}
+                    onClick={() => setAadhaarId('111111111111')}
+                  >111111111111</span> — Rajesh Kumar<br />
+                • <span
+                    style={{ cursor: 'pointer', color: 'var(--primary)', textDecoration: 'underline' }}
+                    onClick={() => setAadhaarId('222222222222')}
+                  >222222222222</span> — Priya Singh
               </div>
 
               <button
-                onClick={handleSendOTP}
+                onClick={handleRequestOTP}
                 disabled={loading || aadhaarId.length !== 12}
+                className="brutal-btn"
                 style={{
-                  width: '100%',
-                  padding: '12px',
-                  background: loading || aadhaarId.length !== 12 ? '#ccc' : '#000',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: loading || aadhaarId.length !== 12 ? 'not-allowed' : 'pointer',
-                  fontFamily: 'monospace',
-                  fontSize: '14px',
-                  fontWeight: 'bold'
+                  width: '100%', padding: '13px',
+                  opacity: (loading || aadhaarId.length !== 12) ? 0.5 : 1,
+                  cursor: (loading || aadhaarId.length !== 12) ? 'not-allowed' : 'pointer',
+                  fontSize: '13px',
                 }}
               >
-                {loading ? 'Sending OTP...' : 'Send OTP'}
+                {loading ? 'Sending OTP…' : 'Send OTP →'}
               </button>
             </div>
           )}
 
-          {/* Step 2: Enter OTP */}
+          {/* ── STEP 2: OTP input ── */}
           {step === 2 && (
             <div>
-              <h4 style={{ 
-                marginBottom: '10px',
-                fontSize: '16px'
-              }}>
+              <h4 style={{ margin: '0 0 8px', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>
                 Step 2: Enter OTP
               </h4>
-              <p style={{ 
-                color: '#666', 
-                fontSize: '14px', 
-                marginBottom: '20px',
-                lineHeight: 1.4
-              }}>
-                OTP sent to {identity?.phone}. Enter the 6-digit code to verify your identity.
-              </p>
 
-              {/* Identity Preview */}
-              <div style={{
-                background: '#f8f9fa',
-                padding: '16px',
-                borderRadius: '6px',
-                marginBottom: '20px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px'
-              }}>
-                <img 
-                  src={identity?.photo} 
-                  alt="Identity"
-                  style={{
-                    width: '50px',
-                    height: '50px',
-                    borderRadius: '6px',
-                    border: '2px solid #ddd'
-                  }}
-                />
-                <div>
-                  <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-                    {identity?.name}
+              {/* Identity preview card */}
+              {preview ? (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '14px',
+                  padding: '12px 16px', marginBottom: '18px',
+                  border: '2px solid var(--border)', background: 'var(--bg)',
+                }}>
+                  <div style={{
+                    width: '44px', height: '44px', flexShrink: 0,
+                    background: preview.color, display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', fontWeight: 'bold', color: '#fff',
+                    fontSize: '18px', border: '2px solid var(--border)',
+                  }}>
+                    {preview.name[0]}
                   </div>
-                  <div style={{ fontSize: '12px', color: '#666' }}>
-                    Aadhaar: {aadhaarId}
+                  <div>
+                    <div style={{ fontWeight: 'bold', fontFamily: 'Space Mono, monospace', fontSize: '14px' }}>{preview.name}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{preview.phone}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>ID: {aadhaarId}</div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div style={{
+                  padding: '12px 16px', marginBottom: '18px',
+                  border: '2px solid var(--border)', background: 'var(--bg)',
+                  fontSize: '13px', color: 'var(--muted)', fontFamily: 'Space Mono, monospace',
+                }}>
+                  OTP sent to phone linked with <strong style={{ color: 'var(--text)' }}>{aadhaarId}</strong>
+                </div>
+              )}
 
               <input
                 type="text"
-                placeholder="Enter 6-digit OTP"
+                inputMode="numeric"
+                placeholder="• • • • • •"
                 value={otp}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-                  setOtp(value);
+                onChange={e => {
+                  setOtp(e.target.value.replace(/\D/g, '').slice(0, 6));
                   setError('');
                 }}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  border: '2px solid var(--border)',
-                  borderRadius: '0px',
-                  fontSize: '18px',
-                  fontFamily: 'var(--font-mono)',
-                  letterSpacing: '4px',
-                  textAlign: 'center',
-                  marginBottom: '20px',
-                  background: 'var(--input-bg)',
-                  color: 'var(--text)'
-                }}
                 maxLength={6}
+                autoFocus
+                style={{
+                  width: '100%', padding: '14px',
+                  border: '2px solid var(--border)', borderRadius: '0',
+                  fontSize: '28px', fontFamily: 'Space Mono, monospace',
+                  letterSpacing: '10px', textAlign: 'center',
+                  background: 'var(--input-bg)', color: 'var(--text)',
+                  marginBottom: '12px', boxSizing: 'border-box',
+                }}
               />
 
-              <div style={{ 
-                fontSize: '12px', 
-                color: '#666',
-                marginBottom: '20px',
-                textAlign: 'center',
-                background: '#f8f9fa',
-                padding: '8px',
-                borderRadius: '4px'
+              <div style={{
+                fontSize: '12px', color: 'var(--muted)', textAlign: 'center',
+                marginBottom: '18px', fontFamily: 'Space Mono, monospace',
               }}>
-                For testing, use OTP: <strong>123456</strong>
+                Testing OTP: <strong style={{ color: 'var(--primary)' }}>123456</strong>
               </div>
 
-              <div style={{ display: 'flex', gap: '12px' }}>
+              <div style={{ display: 'flex', gap: '10px' }}>
                 <button
-                  onClick={() => setStep(1)}
+                  onClick={() => { setStep(1); setOtp(''); setError(''); }}
                   style={{
-                    flex: 1,
-                    padding: '12px',
-                    background: '#f3f4f6',
-                    color: '#666',
-                    border: '2px solid #d1d5db',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontFamily: 'monospace',
-                    fontSize: '14px',
-                    fontWeight: 'bold'
+                    flex: 1, padding: '12px',
+                    background: 'var(--bg)', color: 'var(--text)',
+                    border: '2px solid var(--border)', cursor: 'pointer',
+                    fontFamily: 'Space Mono, monospace', fontSize: '13px',
+                    boxShadow: '3px 3px 0 var(--border)',
                   }}
                 >
-                  Back
+                  ← Back
                 </button>
                 <button
-                  onClick={handleVerifyOTP}
+                  onClick={handleConfirmOTP}
                   disabled={loading || otp.length !== 6}
+                  className="brutal-btn"
                   style={{
-                    flex: 2,
-                    padding: '12px',
-                    background: loading || otp.length !== 6 ? '#ccc' : '#10b981',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: loading || otp.length !== 6 ? 'not-allowed' : 'pointer',
-                    fontFamily: 'monospace',
-                    fontSize: '14px',
-                    fontWeight: 'bold',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px'
+                    flex: 2, padding: '12px', fontSize: '13px',
+                    opacity: (loading || otp.length !== 6) ? 0.5 : 1,
+                    cursor: (loading || otp.length !== 6) ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                   }}
                 >
-                  {loading ? (
-                    'Verifying...'
-                  ) : (
-                    <>
-                      <Icon.CheckCircle />
-                      Verify Identity
-                    </>
-                  )}
+                  {loading ? 'Confirming…' : <><Icon.CheckCircle /> Confirm & Mint Ticket</>}
                 </button>
               </div>
             </div>
           )}
+
+          {/* ── STEP 3: Success ── */}
+          {step === 3 && (
+            <div style={{ textAlign: 'center', padding: '10px 0' }}>
+              <div style={{
+                width: '72px', height: '72px', margin: '0 auto 20px',
+                background: 'var(--primary)', border: '3px solid var(--border)',
+                boxShadow: '4px 4px 0 var(--border)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#000',
+              }}>
+                <Icon.Ticket />
+              </div>
+              <h3 style={{ fontFamily: 'Syne, sans-serif', textTransform: 'uppercase', fontSize: '20px', margin: '0 0 10px', color: 'var(--primary)' }}>
+                Ticket Booked!
+              </h3>
+              <p style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '20px', fontFamily: 'Space Mono, monospace', lineHeight: 1.6 }}>
+                Your NFT ticket has been minted to your wallet.<br />
+                {result?.token_id !== undefined && (
+                  <span>Token ID: <strong style={{ color: 'var(--text)' }}>#{result.token_id}</strong></span>
+                )}
+              </p>
+              <div style={{
+                background: 'var(--bg)', border: '2px solid var(--primary)',
+                padding: '12px', marginBottom: '20px',
+                fontSize: '12px', color: 'var(--muted)', fontFamily: 'Space Mono, monospace',
+                textAlign: 'left', lineHeight: 1.8,
+              }}>
+                <div>🎫 Event: <strong style={{ color: 'var(--text)' }}>{event?.title}</strong></div>
+                <div>📍 Venue: <strong style={{ color: 'var(--text)' }}>{event?.venue}</strong></div>
+                <div>🆔 Identity: <strong style={{ color: 'var(--text)' }}>{aadhaarId}</strong></div>
+              </div>
+              <button
+                onClick={handleClose}
+                className="brutal-btn"
+                style={{ width: '100%', padding: '13px', fontSize: '13px' }}
+              >
+                View My Tickets →
+              </button>
+            </div>
+          )}
+
         </div>
       </div>
     </div>

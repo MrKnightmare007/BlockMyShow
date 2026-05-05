@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import ResaleModal from '../components/ResaleModal';
 import TicketDetailModal from '../components/TicketDetailModal';
 import toast from 'react-hot-toast';
+
+const API_BASE = 'http://localhost:5000/api';
 
 // Inline Icons
 const Icon = {
@@ -15,24 +17,70 @@ const Icon = {
   ),
   MapPin: () => (
     <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+  ),
+  Loader: () => (
+    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ animation: 'spin 1s linear infinite' }}><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
   )
 };
 
-// Mock Data
-const ALL_TICKETS = [
-  { id: 'TXN-8429', title: 'Web3 Summit Mumbai 2024', date: 'June 15, 2024', venue: 'Mumbai Convention Centre', status: 'Active', price: '₹2,500', quantity: 5, image: 'linear-gradient(135deg, #4a90e2, #000)' },
-  { id: 'TXN-9912', title: 'Ethereum Developer Meetup', date: 'August 02, 2024', venue: 'Bangalore Tech Park', status: 'Active', price: '₹1,200', quantity: 2, image: 'linear-gradient(135deg, #10b981, #000)' },
-  { id: 'TXN-4511', title: 'NFT Art Exhibition Delhi', date: 'May 10, 2024', venue: 'Delhi Art Gallery', status: 'Resaled', price: '₹800', quantity: 1, image: 'linear-gradient(135deg, #ec4899, #000)' },
-  { id: 'TXN-1102', title: 'Crypto DevCon', date: 'March 10, 2024', venue: 'Virtual Metaverse', status: 'Expired', price: '₹500', quantity: 1, image: 'linear-gradient(135deg, #f59e0b, #000)' }
-];
+// Normalize ticket data from API
+const normalizeTicket = (ticket) => {
+  const COLORS = ['linear-gradient(135deg, #4a90e2, #000)', 'linear-gradient(135deg, #10b981, #000)', 'linear-gradient(135deg, #ec4899, #000)', 'linear-gradient(135deg, #f59e0b, #000)'];
+  const eventDate = ticket.event?.date ? Number(ticket.event.date) * 1000 : Date.now();
+  return {
+    id: `token_${ticket.token_id}`,
+    tokenId: ticket.token_id,
+    title: ticket.event?.title || 'Event Ticket',
+    date: new Date(eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+    venue: ticket.event?.venue || 'TBA',
+    status: ticket.is_listed ? 'Resaled' : (new Date(eventDate) < new Date() ? 'Expired' : 'Active'),
+    price: ticket.is_listed ? `₹${ticket.list_price?.toLocaleString('en-IN')}` : `₹${ticket.sale_price?.toLocaleString('en-IN')}`,
+    quantity: 1,
+    image: COLORS[ticket.token_id % COLORS.length],
+    is_listed: ticket.is_listed,
+    list_price: ticket.list_price,
+    sale_price: ticket.sale_price,
+  };
+};
 
 export default function TicketsPage() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [activeFilter, setActiveFilter] = useState('Active');
   const [selectedResaleTicket, setSelectedResaleTicket] = useState(null);
   const [selectedViewTicket, setSelectedViewTicket] = useState(null);
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredTickets = ALL_TICKETS.filter(t => t.status === activeFilter);
+  // Fetch user tickets on mount
+  useEffect(() => {
+    const fetchTickets = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/tickets/my-tickets`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        const data = await res.json();
+        if (data.success) {
+          const normalized = (data.tickets || []).map(normalizeTicket);
+          setTickets(normalized);
+        } else {
+          toast.error(data.message || 'Failed to load tickets');
+        }
+      } catch (err) {
+        console.error('Failed to fetch tickets:', err);
+        toast.error('Network error loading tickets');
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (token) fetchTickets();
+  }, [token]);
+
+  const filteredTickets = tickets.filter(t => t.status === activeFilter);
 
   const FILTERS = ['Active', 'Resaled', 'Expired'];
 
@@ -41,6 +89,7 @@ export default function TicketsPage() {
       <style>{`
         .fade-in { animation: fadeIn 0.2s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
       
       <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
@@ -84,7 +133,15 @@ export default function TicketsPage() {
         </div>
 
         {/* Ticket Grid */}
-        {filteredTickets.length === 0 ? (
+        {loading ? (
+          <div className="brutal-card fade-in" style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--muted)' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+              <Icon.Loader />
+            </div>
+            <h3 style={{ marginTop: '1rem', marginBottom: '0.5rem', textTransform: 'uppercase', fontFamily: 'var(--font-display)' }}>Loading Tickets</h3>
+            <p>Fetching your tickets from blockchain...</p>
+          </div>
+        ) : filteredTickets.length === 0 ? (
           <div className="brutal-card fade-in" style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--muted)' }}>
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
               <Icon.Ticket />
@@ -166,14 +223,17 @@ export default function TicketsPage() {
         isOpen={!!selectedResaleTicket}
         onClose={() => setSelectedResaleTicket(null)}
         ticket={selectedResaleTicket || {}}
-        onResaleList={(data) => {
-          toast.success(`${data.quantity} tickets listed for resale!`, {
+        token={token}
+        onResaleSuccess={() => {
+          toast.success('Ticket listed for resale!', {
             style: {
               border: '2px solid #f59e0b',
               background: '#000',
               color: '#f59e0b',
             }
           });
+          setSelectedResaleTicket(null);
+          window.location.reload();
         }}
       />
       <TicketDetailModal 

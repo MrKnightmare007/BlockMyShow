@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import AadhaarModal from '../components/AadhaarModal';
-import PaymentModal from '../components/PaymentModal';
 import EventCard from '../components/EventCard';
 import { useLocation as useAppLocation } from '../context/LocationContext';
 import { useCurrency, CRYPTO_CONFIG } from '../context/CurrencyContext';
@@ -249,12 +248,7 @@ const DashboardPage = () => {
   const [marketType, setMarketType] = useState('Official');
   const [ticketQuantity, setTicketQuantity] = useState(1);
   const [showAadhaarModal, setShowAadhaarModal] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [bookingFlow, setBookingFlow] = useState({
-    event: null,
-    identityVerified: false,
-    identity: null,
-  });
+  const [bookingEvent, setBookingEvent] = useState(null);
 
   // Fetch real events and resale listings on mount
   useEffect(() => {
@@ -360,33 +354,20 @@ const DashboardPage = () => {
   };
 
   const handleBookTicket = () => {
-    setBookingFlow({
-      event: selectedEvent,
-      identityVerified: false,
-      identity: null,
-    });
+    setBookingEvent(selectedEvent);
     setShowAadhaarModal(true);
   };
 
-  const handleIdentityVerified = (identityData) => {
-    setBookingFlow(prev => ({
-      ...prev,
-      identityVerified: true,
-      identity: identityData,
-    }));
+  const handleBookingComplete = (result) => {
+    toast.success(
+      result?.token_id !== undefined
+        ? `🎫 Ticket minted! Token #${result.token_id}`
+        : 'Ticket booked successfully!',
+      { duration: 5000 }
+    );
     setShowAadhaarModal(false);
-    setShowPaymentModal(true);
-  };
-
-  const handlePaymentSuccess = (paymentData) => {
-    toast.success('Ticket Purchase Successful!');
-    setShowPaymentModal(false);
+    setBookingEvent(null);
     setSelectedEvent(null);
-    setBookingFlow({
-      event: null,
-      identityVerified: false,
-      identity: null,
-    });
   };
 
   return (
@@ -733,8 +714,12 @@ const DashboardPage = () => {
       )}
 
       {/* Modals */}
-      <AadhaarModal isOpen={showAadhaarModal} onClose={() => setShowAadhaarModal(false)} onVerified={handleIdentityVerified} eventId={bookingFlow.event?.id} />
-      <PaymentModal isOpen={showPaymentModal} onClose={() => setShowPaymentModal(false)} event={bookingFlow.event} userWallet={walletAddress} identity={bookingFlow.identity} quantity={ticketQuantity} onPaymentSuccess={handlePaymentSuccess} />
+      <AadhaarModal
+        isOpen={showAadhaarModal}
+        onClose={() => { setShowAadhaarModal(false); setBookingEvent(null); }}
+        onBookingComplete={handleBookingComplete}
+        event={bookingEvent}
+      />
     </div>
   );
 };
