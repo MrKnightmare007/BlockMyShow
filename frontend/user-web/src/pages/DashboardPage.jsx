@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import AadhaarModal from '../components/AadhaarModal';
+import BuyResaleModal from '../components/BuyResaleModal';
 import PaymentGatewayModal from '../components/PaymentGatewayModal';
 import OTPVerificationModal from '../components/OTPVerificationModal';
 import EventCard from '../components/EventCard';
@@ -247,6 +248,7 @@ const DashboardPage = () => {
   const [marketType, setMarketType] = useState('Official');
   const [showAadhaarModal, setShowAadhaarModal] = useState(false);
   const [bookingEvent, setBookingEvent] = useState(null);
+  const [buyResaleListing, setBuyResaleListing] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showOTPModal, setShowOTPModal] = useState(false);
   const [verifiedIdentity, setVerifiedIdentity] = useState(null);
@@ -640,7 +642,10 @@ const DashboardPage = () => {
                 <button 
                   onClick={() => {
                     const maxQty = selectedEvent.totalTickets - selectedEvent.ticketsMinted;
-                    if (maxQty === 0) {
+                    if (selectedEvent.isResale) {
+                      // Resale ticket → use buy-resale flow
+                      setBuyResaleListing(selectedEvent);
+                    } else if (maxQty === 0) {
                       toast.success('Joined Waitlist! We will notify you when a resale ticket is available.', {
                         icon: '🔔',
                         style: { border: '2px solid var(--primary)', background: 'var(--bg)', color: 'var(--text)' }
@@ -692,6 +697,15 @@ const DashboardPage = () => {
         event={bookingEvent}
         identityId={verifiedIdentity}
         onOTPVerified={handleOTPVerified}
+      />
+      <BuyResaleModal
+        listing={buyResaleListing}
+        token={token}
+        onClose={() => setBuyResaleListing(null)}
+        onSuccess={() => {
+          setBuyResaleListing(null);
+          setSelectedEvent(null);
+        }}
       />
     </div>
   );
