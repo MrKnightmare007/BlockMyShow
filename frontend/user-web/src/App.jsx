@@ -7,6 +7,7 @@ import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
 import ProfilePage from './pages/ProfilePage';
 import TicketsPage from './pages/TicketsPage';
+import MarketplacePage from './pages/MarketplacePage';
 import ManageEventsPage from './pages/ManageEventsPage';
 import Navbar from './components/Navbar';
 import Loader from './components/Loader';
@@ -44,6 +45,7 @@ const AppContent = () => {
               <>
                 <Route path="/" element={<DashboardPage />} />
                 <Route path="/tickets" element={<TicketsPage />} />
+                <Route path="/marketplace" element={<MarketplacePage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </>

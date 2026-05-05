@@ -1,205 +1,399 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import toast from 'react-hot-toast';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const API_BASE = 'http://localhost:5000/api';
 
-function MarketplacePage() {
-  const navigate = useNavigate();
-  const { isAuthenticated, token } = useAuth();
-  const [listings, setListings] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+const GRADIENT_COLORS = [
+  'linear-gradient(135deg, #31bbaf 0%, #0a0a0a 100%)',
+  'linear-gradient(135deg, #4a90e2 0%, #0a0a0a 100%)',
+  'linear-gradient(135deg, #ec4899 0%, #0a0a0a 100%)',
+  'linear-gradient(135deg, #f59e0b 0%, #0a0a0a 100%)',
+  'linear-gradient(135deg, #8b5cf6 0%, #0a0a0a 100%)',
+];
 
-  // Buy resale state
-  const [buyModal, setBuyModal] = useState(null); // { tokenId, listPrice }
-  const [buyStep, setBuyStep] = useState('identity'); // 'identity' | 'otp'
+const formatDate = (unix) => {
+  if (!unix) return 'TBA';
+  return new Date(Number(unix) * 1000).toLocaleDateString('en-IN', {
+    day: 'numeric', month: 'short', year: 'numeric',
+  });
+};
+
+// ── Buy Resale Modal  ──────────────────────────────────────────────────────
+// Steps:  identity → payment → otp → success
+const BuyResaleModal = ({ listing, onClose, token, onSuccess }) => {
+  const [step, setStep]               = useState('identity'); // identity | payment | otp | success
   const [buyerIdentity, setBuyerIdentity] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpMessage, setOtpMessage] = useState('');
-  const [buyLoading, setBuyLoading] = useState(false);
-  const [buyError, setBuyError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [otp, setOtp]                 = useState('');
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState('');
+  const [resultData, setResultData]   = useState(null);
 
-  useEffect(() => {
-    fetchMarketplace();
-  }, []);
+  if (!listing) return null;
 
-  const fetchMarketplace = async () => {
+  const authHeaders = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+  };
+
+  // Step 1 → 2: verify identity exists → show payment confirmation
+  const handleIdentityNext = async () => {
+    if (!buyerIdentity || buyerIdentity.length < 6) {
+      setError('Enter a valid Identity ID (min 6 digits)');
+      return;
+    }
+    setError('');
+    setStep('payment');
+  };
+
+  // Step 2 → 3: POST /api/tickets/buy-resale/request
+  const handlePaymentConfirm = async () => {
     setLoading(true); setError('');
     try {
-      const res = await fetch(`${API_BASE}/tickets/marketplace`);
+      const res = await fetch(`${API_BASE}/tickets/buy-resale/request`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ tokenId: String(listing.token_id), buyerIdentity }),
+      });
       const data = await res.json();
-      if (!data.success) throw new Error(data.message || 'Failed to load marketplace');
-      setListings(data.tickets || []);
-    } catch (err) {
-      setError(err.message);
+      if (!data.success) throw new Error(data.message || 'Request failed');
+      toast.success('OTP sent to your registered number!');
+      setStep('otp');
+    } catch (e) {
+      setError(e.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleBuyRequest = async () => {
-    if (!buyerIdentity) { setBuyError('Enter your Identity ID'); return; }
-    setBuyLoading(true); setBuyError('');
-    try {
-      const res = await fetch(`${API_BASE}/tickets/buy-resale/request`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tokenId: buyModal.tokenId, buyerIdentity }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message);
-      setOtpMessage(data.message || 'OTP sent to your registered number');
-      setBuyStep('otp');
-    } catch (err) {
-      setBuyError(err.message);
-    } finally {
-      setBuyLoading(false);
-    }
-  };
-
-  const handleBuyConfirm = async () => {
-    if (!otp) { setBuyError('Enter OTP'); return; }
-    setBuyLoading(true); setBuyError('');
+  // Step 3 → 4: POST /api/tickets/buy-resale/confirm
+  const handleOTPConfirm = async () => {
+    if (!otp || otp.length !== 6) { setError('Enter 6-digit OTP'); return; }
+    setLoading(true); setError('');
     try {
       const res = await fetch(`${API_BASE}/tickets/buy-resale/confirm`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tokenId: buyModal.tokenId, buyerIdentity, otp }),
+        headers: authHeaders,
+        body: JSON.stringify({ tokenId: String(listing.token_id), buyerIdentity, otp }),
       });
       const data = await res.json();
-      if (!data.success) throw new Error(data.message);
-      setSuccess(`🎉 Ticket purchased! Token ID: ${data.token_id}`);
-      setBuyModal(null); setBuyerIdentity(''); setOtp(''); setBuyStep('identity');
-      fetchMarketplace();
-      setTimeout(() => { setSuccess(''); navigate('/tickets'); }, 2500);
-    } catch (err) {
-      setBuyError(err.message);
+      if (!data.success) throw new Error(data.message || 'Invalid OTP');
+      setResultData(data);
+      setStep('success');
+      onSuccess();
+    } catch (e) {
+      setError(e.message);
     } finally {
-      setBuyLoading(false);
+      setLoading(false);
     }
   };
 
-  const closeBuyModal = () => {
-    setBuyModal(null); setBuyerIdentity(''); setOtp(''); setBuyError(''); setBuyStep('identity');
-  };
+  const STEPS = ['identity', 'payment', 'otp', 'success'];
+  const stepIdx = STEPS.indexOf(step);
 
   return (
-    <div className="animate-fadeIn min-h-screen bg-gray-50 dark:bg-gray-900 dark-transition">
-      <div className="max-w-6xl mx-auto px-4 py-10">
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', border: '3px solid var(--border)', boxShadow: '8px 8px 0 var(--border)', maxWidth: '460px', width: '100%' }}>
+
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white mb-2">
-            🏪 Resale Marketplace
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Buy verified resale tickets from other users — secured by identity verification
-          </p>
+        <div style={{ padding: '16px 20px', borderBottom: '3px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0, fontFamily: 'Syne, sans-serif', fontSize: '15px', textTransform: 'uppercase' }}>
+            Buy Resale Ticket
+          </h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', fontSize: '18px' }}>✕</button>
         </div>
 
-        {success && (
-          <div className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 p-4 rounded-xl mb-6 font-semibold text-center">
-            {success}
+        {/* Ticket info bar */}
+        <div style={{ padding: '10px 20px', borderBottom: '2px solid var(--border)', background: 'var(--bg)', display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontFamily: 'Space Mono, monospace' }}>
+          <span style={{ color: 'var(--text)', fontWeight: 'bold' }}>{listing.event?.title || 'Event'}</span>
+          <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>₹{Number(listing.list_price).toLocaleString('en-IN')}</span>
+        </div>
+
+        {/* Step indicator */}
+        {step !== 'success' && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px 20px 0', gap: '0' }}>
+            {['ID', 'PAY', 'OTP'].map((label, i) => (
+              <div key={label} style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{
+                  width: '28px', height: '28px',
+                  border: '2px solid var(--border)',
+                  background: i < stepIdx ? 'var(--primary)' : i === stepIdx ? 'var(--border)' : 'transparent',
+                  color: i <= stepIdx ? (i < stepIdx ? '#000' : 'var(--surface)') : 'var(--muted)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '10px', fontWeight: 'bold', fontFamily: 'Space Mono, monospace',
+                }}>
+                  {i < stepIdx ? '✓' : i + 1}
+                </div>
+                <div style={{ fontSize: '9px', color: i === stepIdx ? 'var(--text)' : 'var(--muted)', marginLeft: '4px', fontFamily: 'Space Mono, monospace', marginRight: i < 2 ? '0' : '0' }}>
+                  {label}
+                </div>
+                {i < 2 && <div style={{ width: '24px', height: '2px', background: i < stepIdx ? 'var(--primary)' : 'var(--border)', margin: '0 6px' }} />}
+              </div>
+            ))}
           </div>
         )}
 
-        {/* Refresh */}
-        <div className="flex justify-end mb-6">
-          <button onClick={fetchMarketplace}
-            className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline text-sm font-medium">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Refresh
+        {/* Body */}
+        <div style={{ padding: '24px' }}>
+          {error && (
+            <div style={{ background: '#1a0000', color: '#ff4444', padding: '10px 14px', marginBottom: '16px', fontSize: '13px', border: '2px solid #ff4444', fontFamily: 'Space Mono, monospace' }}>
+              ⚠ {error}
+            </div>
+          )}
+
+          {/* STEP 1: Identity */}
+          {step === 'identity' && (
+            <div>
+              <h4 style={{ margin: '0 0 8px', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px' }}>Step 1: Your Identity ID</h4>
+              <p style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '16px', fontFamily: 'Space Mono, monospace', lineHeight: 1.5 }}>
+                Enter your 12-digit Aadhaar / identity number. OTP will be sent to your registered phone.
+              </p>
+              <input
+                type="text" inputMode="numeric"
+                placeholder="Enter 12-digit Identity ID"
+                value={buyerIdentity}
+                onChange={e => { setBuyerIdentity(e.target.value.replace(/\D/g, '').slice(0, 12)); setError(''); }}
+                maxLength={12}
+                style={{ width: '100%', padding: '12px', marginBottom: '12px', border: '2px solid var(--border)', background: 'var(--input-bg)', color: 'var(--text)', fontFamily: 'Space Mono, monospace', fontSize: '18px', letterSpacing: '4px', textAlign: 'center', boxSizing: 'border-box' }}
+              />
+              {/* Test hint */}
+              <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '16px', padding: '10px 14px', border: '2px dashed var(--border)', background: 'var(--bg)', fontFamily: 'Space Mono, monospace', lineHeight: 1.7 }}>
+                <strong style={{ color: 'var(--text)' }}>For testing:</strong><br />
+                • <span style={{ cursor: 'pointer', color: 'var(--primary)', textDecoration: 'underline' }} onClick={() => setBuyerIdentity('111111111111')}>111111111111</span> — Rajesh Kumar<br />
+                • <span style={{ cursor: 'pointer', color: 'var(--primary)', textDecoration: 'underline' }} onClick={() => setBuyerIdentity('222222222222')}>222222222222</span> — Priya Singh
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={onClose} style={{ flex: 1, padding: '12px', background: 'transparent', border: '2px solid var(--border)', color: 'var(--muted)', cursor: 'pointer', fontFamily: 'Space Mono, monospace', fontSize: '13px' }}>Cancel</button>
+                <button onClick={handleIdentityNext} disabled={buyerIdentity.length < 6} className="brutal-btn"
+                  style={{ flex: 2, padding: '12px', fontSize: '13px', opacity: buyerIdentity.length < 6 ? 0.5 : 1, cursor: buyerIdentity.length < 6 ? 'not-allowed' : 'pointer' }}>
+                  Next →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2: Payment confirmation */}
+          {step === 'payment' && (
+            <div>
+              <h4 style={{ margin: '0 0 16px', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px' }}>Step 2: Confirm Payment</h4>
+              <div style={{ border: '2px solid var(--border)', background: 'var(--bg)', marginBottom: '20px', fontFamily: 'Space Mono, monospace', fontSize: '13px' }}>
+                {[
+                  ['Ticket', `Token #${listing.token_id}`],
+                  ['Event', listing.event?.title || 'N/A'],
+                  ['Venue', listing.event?.venue || 'N/A'],
+                  ['Date', formatDate(listing.event?.date)],
+                  ['Identity ID', buyerIdentity],
+                  ['Original Price', `₹${Number(listing.sale_price || 0).toLocaleString('en-IN')}`],
+                  ['Resale Price', `₹${Number(listing.list_price).toLocaleString('en-IN')}`],
+                ].map(([k, v]) => (
+                  <div key={k} style={{ display: 'flex', padding: '8px 14px', borderBottom: '1px solid var(--border)', gap: '12px' }}>
+                    <span style={{ color: 'var(--muted)', minWidth: '100px', fontSize: '11px', textTransform: 'uppercase' }}>{k}</span>
+                    <span style={{ color: k === 'Resale Price' ? 'var(--primary)' : 'var(--text)', fontWeight: 'bold' }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: '12px', color: '#f59e0b', border: '1px solid #f59e0b', background: 'rgba(245,158,11,0.08)', padding: '10px 14px', marginBottom: '20px', fontFamily: 'Space Mono, monospace' }}>
+                ⚠ Clicking "Pay & Get OTP" will initiate the purchase. An OTP will be sent to verify your identity.
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={() => setStep('identity')} style={{ flex: 1, padding: '12px', background: 'transparent', border: '2px solid var(--border)', color: 'var(--muted)', cursor: 'pointer', fontFamily: 'Space Mono, monospace', fontSize: '13px' }}>← Back</button>
+                <button onClick={handlePaymentConfirm} disabled={loading} className="brutal-btn"
+                  style={{ flex: 2, padding: '12px', fontSize: '13px', opacity: loading ? 0.6 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}>
+                  {loading ? 'Sending OTP…' : `Pay ₹${Number(listing.list_price).toLocaleString('en-IN')} & Get OTP`}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3: OTP */}
+          {step === 'otp' && (
+            <div>
+              <h4 style={{ margin: '0 0 8px', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px' }}>Step 3: Enter OTP</h4>
+              <p style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '16px', fontFamily: 'Space Mono, monospace', lineHeight: 1.5 }}>
+                OTP sent to your registered phone. Enter it below to complete the purchase.
+              </p>
+              <input
+                type="text" inputMode="numeric"
+                placeholder="• • • • • •"
+                value={otp}
+                onChange={e => { setOtp(e.target.value.replace(/\D/g, '').slice(0, 6)); setError(''); }}
+                maxLength={6}
+                autoFocus
+                style={{ width: '100%', padding: '14px', marginBottom: '10px', border: '2px solid var(--border)', background: 'var(--input-bg)', color: 'var(--text)', fontFamily: 'Space Mono, monospace', fontSize: '28px', letterSpacing: '12px', textAlign: 'center', boxSizing: 'border-box' }}
+              />
+              <div style={{ fontSize: '12px', color: 'var(--muted)', textAlign: 'center', marginBottom: '18px', fontFamily: 'Space Mono, monospace' }}>
+                Testing OTP: <strong style={{ color: 'var(--primary)' }}>123456</strong>
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={() => { setStep('payment'); setOtp(''); setError(''); }} style={{ flex: 1, padding: '12px', background: 'transparent', border: '2px solid var(--border)', color: 'var(--muted)', cursor: 'pointer', fontFamily: 'Space Mono, monospace', fontSize: '13px' }}>← Back</button>
+                <button onClick={handleOTPConfirm} disabled={loading || otp.length !== 6} className="brutal-btn"
+                  style={{ flex: 2, padding: '12px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: (loading || otp.length !== 6) ? 0.5 : 1, cursor: (loading || otp.length !== 6) ? 'not-allowed' : 'pointer' }}>
+                  {loading ? 'Confirming…' : '✅ Confirm Purchase'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 4: Success */}
+          {step === 'success' && (
+            <div style={{ textAlign: 'center', padding: '10px 0' }}>
+              <div style={{ width: '72px', height: '72px', margin: '0 auto 20px', background: 'var(--primary)', border: '3px solid var(--border)', boxShadow: '4px 4px 0 var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '36px' }}>
+                🎫
+              </div>
+              <h3 style={{ fontFamily: 'Syne, sans-serif', textTransform: 'uppercase', fontSize: '20px', margin: '0 0 10px', color: 'var(--primary)' }}>
+                Purchase Complete!
+              </h3>
+              <p style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '20px', fontFamily: 'Space Mono, monospace', lineHeight: 1.6 }}>
+                Your NFT ticket has been transferred to your wallet.
+                {resultData?.token_id !== undefined && (
+                  <><br />Token ID: <strong style={{ color: 'var(--text)' }}>#{resultData.token_id}</strong></>
+                )}
+              </p>
+              <button onClick={onClose} className="brutal-btn" style={{ width: '100%', padding: '13px', fontSize: '13px' }}>
+                View My Tickets →
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Page ───────────────────────────────────────────────────────────────────
+export default function MarketplacePage() {
+  const navigate = useNavigate();
+  const { isAuthenticated, token } = useAuth();
+  const [listings, setListings]   = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState('');
+  const [buyListing, setBuyListing] = useState(null);
+
+  const fetchMarketplace = async () => {
+    setLoading(true); setError('');
+    try {
+      const res  = await fetch(`${API_BASE}/tickets/marketplace`);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'Failed to load');
+      setListings(data.tickets || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchMarketplace(); }, []);
+
+  const handleBuySuccess = () => {
+    fetchMarketplace();
+    setTimeout(() => { navigate('/tickets'); }, 2500);
+  };
+
+  return (
+    <div style={{ minHeight: 'calc(100vh - 60px)', background: 'var(--bg)', padding: '40px 20px' }}>
+      <style>{`.fade-in{animation:fadeIn .2s ease-out}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
+
+      <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '32px', borderBottom: '3px solid var(--border)', paddingBottom: '18px' }}>
+          <div>
+            <h1 style={{ fontFamily: 'Syne, sans-serif', fontSize: '2.2rem', margin: '0 0 6px', textTransform: 'uppercase' }}>
+              🏷️ Resale Marketplace
+            </h1>
+            <p style={{ color: 'var(--muted)', margin: 0, fontSize: '13px', fontFamily: 'Space Mono, monospace' }}>
+              {listings.length} verified resale ticket{listings.length !== 1 ? 's' : ''} — secured by identity verification
+            </p>
+          </div>
+          <button onClick={fetchMarketplace} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', background: 'var(--surface)', border: '2px solid var(--border)', color: 'var(--text)', cursor: 'pointer', fontFamily: 'Space Mono, monospace', fontSize: '12px', fontWeight: 'bold' }}>
+            ↻ Refresh
           </button>
         </div>
 
+        {/* States */}
         {loading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1,2,3,4,5,6].map(i => <div key={i} className="shimmer h-72 rounded-xl" />)}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+            {[1, 2, 3].map(i => <div key={i} className="brutal-card" style={{ height: '220px', opacity: 0.4 }} />)}
           </div>
         )}
 
         {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 p-4 rounded-xl">{error}</div>
-        )}
-
-        {!loading && !error && listings.length === 0 && (
-          <div className="text-center py-20 text-gray-500 dark:text-gray-400">
-            <div className="text-6xl mb-4">🏷️</div>
-            <h3 className="text-xl font-semibold mb-2">No tickets listed for resale</h3>
-            <p>Check back later or browse new events!</p>
-            <button onClick={() => navigate('/events')}
-              className="mt-6 bms-button px-8 py-3 rounded-lg">Browse Events</button>
+          <div className="brutal-card" style={{ textAlign: 'center', padding: '3rem', color: '#ef4444', fontFamily: 'Space Mono, monospace' }}>
+            ⚠ {error}
+            <br /><button onClick={fetchMarketplace} className="brutal-btn" style={{ marginTop: '16px', padding: '10px 24px', fontSize: '13px' }}>Retry</button>
           </div>
         )}
 
+        {!loading && !error && listings.length === 0 && (
+          <div className="brutal-card fade-in" style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--muted)' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '12px' }}>🏷️</div>
+            <h3 style={{ fontFamily: 'Syne, sans-serif', textTransform: 'uppercase', margin: '0 0 8px' }}>No Resale Listings</h3>
+            <p style={{ fontSize: '13px', fontFamily: 'Space Mono, monospace', marginBottom: '20px' }}>No tickets listed for resale right now. Check back later!</p>
+            <button onClick={() => navigate('/')} className="brutal-btn" style={{ padding: '12px 24px', fontSize: '13px' }}>Browse Events →</button>
+          </div>
+        )}
+
+        {/* Listing Grid */}
         {!loading && !error && listings.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {listings.map((listing, index) => {
-              const colors = ['#4a90e2', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6'];
-              const bgColor = colors[index % colors.length];
-              const dateStr = listing.event?.date
-                ? new Date(Number(listing.event.date) * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                : 'TBA';
-              const discount = listing.sale_price > listing.list_price;
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px' }}>
+            {listings.map((listing, idx) => {
+              const gradient = GRADIENT_COLORS[idx % GRADIENT_COLORS.length];
+              const dateStr  = formatDate(listing.event?.date);
+              const isBelow  = Number(listing.list_price) < Number(listing.sale_price);
 
               return (
-                <div key={listing.token_id}
-                  className="marketplace-card bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-md">
+                <div key={listing.token_id} className="brutal-card fade-in" style={{ padding: 0, overflow: 'hidden' }}>
                   {/* Banner */}
-                  <div className="relative h-40" style={{ background: `linear-gradient(135deg, ${bgColor}99, ${bgColor})` }}>
-                    {listing.event?.photo_url && (
-                      <img src={listing.event.photo_url} alt={listing.event?.title} className="absolute inset-0 w-full h-full object-cover"
-                        onError={e => { e.target.style.display = 'none'; }} />
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                    {discount && (
-                      <div className="absolute top-2 left-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full font-bold">
-                        BELOW FACE VALUE
+                  <div style={{ height: '120px', background: gradient, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: '14px', position: 'relative', borderBottom: '3px solid var(--border)' }}>
+                    {isBelow && (
+                      <div style={{ position: 'absolute', top: '10px', left: '10px', background: 'var(--primary)', color: '#000', fontSize: '10px', fontWeight: 'bold', padding: '3px 8px', border: '2px solid var(--border)', fontFamily: 'Space Mono, monospace' }}>
+                        ↓ BELOW FACE VALUE
                       </div>
                     )}
-                    <div className="absolute bottom-2 left-3 text-white">
-                      <h3 className="text-lg font-bold leading-tight">{listing.event?.title || 'Event'}</h3>
-                    </div>
+                    <h3 style={{ margin: 0, color: '#fff', fontFamily: 'Syne, sans-serif', fontSize: '16px', textTransform: 'uppercase', textShadow: '1px 1px 4px rgba(0,0,0,0.8)' }}>
+                      {listing.event?.title || 'Event'}
+                    </h3>
                   </div>
 
                   {/* Details */}
-                  <div className="p-4">
-                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                  <div style={{ padding: '16px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--muted)', fontFamily: 'Space Mono, monospace', marginBottom: '12px', lineHeight: 1.8 }}>
                       <div>📅 {dateStr}</div>
-                      <div>📍 {listing.event?.venue || 'N/A'}</div>
+                      <div>📍 {listing.event?.venue || 'TBA'}</div>
                     </div>
 
-                    <div className="flex items-center justify-between mb-4">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                       <div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Resale Price</p>
-                        <p className="text-2xl font-bold text-pink-600 dark:text-pink-400">
-                          ₹{Number(listing.list_price)}
-                        </p>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', fontFamily: 'Space Mono, monospace', textTransform: 'uppercase', marginBottom: '2px' }}>Resale Price</div>
+                        <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--primary)', fontFamily: 'Space Mono, monospace' }}>
+                          ₹{Number(listing.list_price).toLocaleString('en-IN')}
+                        </div>
                         {listing.sale_price && (
-                          <p className="text-xs text-gray-400 line-through">
-                            Original: ₹{Number(listing.sale_price)}
-                          </p>
+                          <div style={{ fontSize: '11px', color: 'var(--muted)', textDecoration: 'line-through', fontFamily: 'Space Mono, monospace' }}>
+                            ₹{Number(listing.sale_price).toLocaleString('en-IN')}
+                          </div>
                         )}
                       </div>
-                      <div className="text-right">
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Token</p>
-                        <p className="font-mono text-gray-700 dark:text-gray-300 font-bold">#{listing.token_id}</p>
+                      <div style={{ textAlign: 'right', fontFamily: 'Space Mono, monospace' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '2px' }}>Token</div>
+                        <div style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text)' }}>#{listing.token_id}</div>
                       </div>
                     </div>
 
                     {isAuthenticated ? (
                       <button
-                        onClick={() => setBuyModal({ tokenId: listing.token_id, listPrice: listing.list_price })}
-                        className="w-full bms-button text-center py-2.5 rounded-lg font-semibold"
+                        className="brutal-btn"
+                        onClick={() => setBuyListing(listing)}
+                        style={{ width: '100%', padding: '12px', fontSize: '13px' }}
                       >
-                        Buy for ₹{Number(listing.list_price)}
+                        Buy for ₹{Number(listing.list_price).toLocaleString('en-IN')} →
                       </button>
                     ) : (
-                      <button onClick={() => navigate('/auth')}
-                        className="w-full bg-gray-600 hover:bg-gray-700 text-white py-2.5 rounded-lg font-semibold transition-colors">
+                      <button
+                        onClick={() => navigate('/')}
+                        style={{ width: '100%', padding: '12px', fontSize: '13px', background: 'var(--surface)', border: '2px solid var(--border)', color: 'var(--muted)', cursor: 'pointer', fontFamily: 'Space Mono, monospace', fontWeight: 'bold' }}
+                      >
                         Login to Buy
                       </button>
                     )}
@@ -212,69 +406,14 @@ function MarketplacePage() {
       </div>
 
       {/* Buy Modal */}
-      {buyModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <h2 className="text-xl font-bold mb-1 text-gray-800 dark:text-white">Buy Resale Ticket</h2>
-            <p className="text-gray-500 dark:text-gray-400 text-sm mb-5">
-              Token #{buyModal.tokenId} &bull; ₹{Number(buyModal.listPrice)}
-            </p>
-
-            {buyStep === 'identity' && (
-              <>
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
-                  Enter your Aadhaar / Identity ID to receive OTP verification
-                </p>
-                <input
-                  type="text"
-                  placeholder="Enter your 12-digit Identity ID"
-                  value={buyerIdentity}
-                  onChange={e => setBuyerIdentity(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-pink-500 focus:outline-none mb-3"
-                />
-              </>
-            )}
-
-            {buyStep === 'otp' && (
-              <>
-                <div className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 p-3 rounded-lg text-sm mb-3">
-                  {otpMessage}
-                </div>
-                <input
-                  type="text"
-                  placeholder="Enter 6-digit OTP"
-                  value={otp}
-                  onChange={e => setOtp(e.target.value.slice(0, 6))}
-                  maxLength="6"
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-pink-500 focus:outline-none text-center text-2xl tracking-widest mb-3"
-                />
-              </>
-            )}
-
-            {buyError && (
-              <div className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 p-3 rounded-lg text-sm mb-3">
-                {buyError}
-              </div>
-            )}
-
-            <div className="flex gap-3">
-              <button onClick={closeBuyModal}
-                className="flex-1 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium">
-                Cancel
-              </button>
-              <button
-                onClick={buyStep === 'identity' ? handleBuyRequest : handleBuyConfirm}
-                disabled={buyLoading}
-                className="flex-1 py-2.5 bms-button rounded-lg font-semibold disabled:opacity-50"
-              >
-                {buyLoading ? 'Processing...' : buyStep === 'identity' ? 'Send OTP' : 'Confirm Purchase'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {buyListing && (
+        <BuyResaleModal
+          listing={buyListing}
+          token={token}
+          onClose={() => setBuyListing(null)}
+          onSuccess={handleBuySuccess}
+        />
       )}
     </div>
   );
 }
-
-export default MarketplacePage;
