@@ -92,24 +92,42 @@ export default function GateScannerScreen() {
   }
 
   // Handle QR code scan
+  // Supports formats:
+  //   JSON: { "tokenId": 1 }
+  //   BlockMyShow QR: BLOCKMYSHOW:TOKEN:1:EVENT:0
+  //   Plain number:   1
   const handleBarCodeScanned = ({ data }: { data: string }) => {
     if (!scanned) {
       setScanned(true);
+
+      // Format: BLOCKMYSHOW:TOKEN:{id}:EVENT:{eventId}
+      const bmsMatch = data.match(/^BLOCKMYSHOW:TOKEN:(\d+):EVENT:(\d+)$/i);
+      if (bmsMatch) {
+        setTokenId(parseInt(bmsMatch[1], 10));
+        setStep('entry');
+        return;
+      }
+
+      // Format: JSON { tokenId: N }
       try {
         const decoded = JSON.parse(data);
-        setTokenId(decoded.tokenId);
-        setStep('entry');
-      } catch {
-        // If not JSON, try as plain number
-        const tokenIdNum = parseInt(data);
-        if (!isNaN(tokenIdNum)) {
-          setTokenId(tokenIdNum);
+        if (decoded.tokenId !== undefined) {
+          setTokenId(Number(decoded.tokenId));
           setStep('entry');
-        } else {
-          Alert.alert('Invalid QR Code', 'QR code does not contain a valid token ID');
-          setScanned(false);
+          return;
         }
+      } catch {/* not JSON */}
+
+      // Format: plain number
+      const tokenIdNum = parseInt(data, 10);
+      if (!isNaN(tokenIdNum)) {
+        setTokenId(tokenIdNum);
+        setStep('entry');
+        return;
       }
+
+      Alert.alert('Invalid QR Code', 'QR code does not contain a valid token ID');
+      setScanned(false);
     }
   };
 
