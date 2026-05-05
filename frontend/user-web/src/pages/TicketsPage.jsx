@@ -1,246 +1,481 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
-import ResaleModal from '../components/ResaleModal';
-import TicketDetailModal from '../components/TicketDetailModal';
 import toast from 'react-hot-toast';
 
 const API_BASE = 'http://localhost:5000/api';
 
-// Inline Icons
+// ── Icons ──────────────────────────────────────────────────────────────────
 const Icon = {
-  Ticket: () => (
-    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2Z"/></svg>
+  Ticket: ({ size = 20 }) => (
+    <svg width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2Z"/>
+    </svg>
   ),
   Calendar: () => (
-    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+    </svg>
   ),
   MapPin: () => (
-    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>
+    </svg>
   ),
-  Loader: () => (
-    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ animation: 'spin 1s linear infinite' }}><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
-  )
+  Tag: () => (
+    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+      <line x1="7" y1="7" x2="7.01" y2="7"/>
+    </svg>
+  ),
+  RefreshCw: () => (
+    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+    </svg>
+  ),
+  X: () => (
+    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M18 6L6 18M6 6l12 12"/>
+    </svg>
+  ),
 };
 
-// Normalize ticket data from API
-const normalizeTicket = (ticket) => {
-  const COLORS = ['linear-gradient(135deg, #4a90e2, #000)', 'linear-gradient(135deg, #10b981, #000)', 'linear-gradient(135deg, #ec4899, #000)', 'linear-gradient(135deg, #f59e0b, #000)'];
-  const eventDate = ticket.event?.date ? Number(ticket.event.date) * 1000 : Date.now();
-  return {
-    id: `token_${ticket.token_id}`,
-    tokenId: ticket.token_id,
-    title: ticket.event?.title || 'Event Ticket',
-    date: new Date(eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-    venue: ticket.event?.venue || 'TBA',
-    status: ticket.is_listed ? 'Resaled' : (new Date(eventDate) < new Date() ? 'Expired' : 'Active'),
-    price: ticket.is_listed ? `₹${ticket.list_price?.toLocaleString('en-IN')}` : `₹${ticket.sale_price?.toLocaleString('en-IN')}`,
-    quantity: 1,
-    image: COLORS[ticket.token_id % COLORS.length],
-    is_listed: ticket.is_listed,
-    list_price: ticket.list_price,
-    sale_price: ticket.sale_price,
-  };
+// ── Helpers ────────────────────────────────────────────────────────────────
+const formatDate = (unix) => {
+  if (!unix) return 'TBA';
+  const d = new Date(Number(unix) * 1000);
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
-export default function TicketsPage() {
-  const { user, token } = useAuth();
-  const [activeFilter, setActiveFilter] = useState('Active');
-  const [selectedResaleTicket, setSelectedResaleTicket] = useState(null);
-  const [selectedViewTicket, setSelectedViewTicket] = useState(null);
-  const [tickets, setTickets] = useState([]);
-  const [loading, setLoading] = useState(true);
+const GRADIENT_COLORS = [
+  'linear-gradient(135deg, #31bbaf 0%, #0a0a0a 100%)',
+  'linear-gradient(135deg, #4a90e2 0%, #0a0a0a 100%)',
+  'linear-gradient(135deg, #ec4899 0%, #0a0a0a 100%)',
+  'linear-gradient(135deg, #f59e0b 0%, #0a0a0a 100%)',
+  'linear-gradient(135deg, #8b5cf6 0%, #0a0a0a 100%)',
+];
 
-  // Fetch user tickets on mount
+// ── Inline Resale / Update Price Modal ────────────────────────────────────
+const ResaleActionModal = ({ isOpen, onClose, ticket, token, onSuccess }) => {
+  const isAlreadyListed = ticket?.isListed;
+  const [price, setPrice]   = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // pre-fill with current listPrice when editing
   useEffect(() => {
-    const fetchTickets = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`${API_BASE}/tickets/my-tickets`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-        const data = await res.json();
-        if (data.success) {
-          const normalized = (data.tickets || []).map(normalizeTicket);
-          setTickets(normalized);
-        } else {
-          toast.error(data.message || 'Failed to load tickets');
-        }
-      } catch (err) {
-        console.error('Failed to fetch tickets:', err);
-        toast.error('Network error loading tickets');
-      } finally {
-        setLoading(false);
-      }
-    };
-    if (token) fetchTickets();
+    if (isOpen) setPrice(isAlreadyListed ? String(ticket?.listPrice || '') : '');
+  }, [isOpen, ticket]);
+
+  if (!isOpen || !ticket) return null;
+
+  const authHeaders = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+  };
+
+  const handleList = async () => {
+    if (!price || Number(price) <= 0) { toast.error('Enter a valid price'); return; }
+    setLoading(true);
+    try {
+      const res  = await fetch(`${API_BASE}/tickets/list`, {
+        method: 'POST', headers: authHeaders,
+        body: JSON.stringify({ tokenId: String(ticket.token_id), price: Number(price) }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'Failed to list');
+      toast.success('🏷️ Ticket listed for resale!');
+      onSuccess();
+      onClose();
+    } catch (e) { toast.error(e.message); }
+    finally { setLoading(false); }
+  };
+
+  const handleUpdatePrice = async () => {
+    if (!price || Number(price) <= 0) { toast.error('Enter a valid price'); return; }
+    setLoading(true);
+    try {
+      const res  = await fetch(`${API_BASE}/tickets/update-list-price`, {
+        method: 'POST', headers: authHeaders,
+        body: JSON.stringify({ tokenId: String(ticket.token_id), newPrice: Number(price) }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'Failed to update price');
+      toast.success('💰 List price updated!');
+      onSuccess();
+      onClose();
+    } catch (e) { toast.error(e.message); }
+    finally { setLoading(false); }
+  };
+
+  const handleCancel = async () => {
+    setLoading(true);
+    try {
+      const res  = await fetch(`${API_BASE}/tickets/cancel-listing`, {
+        method: 'POST', headers: authHeaders,
+        body: JSON.stringify({ tokenId: String(ticket.token_id) }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'Failed to cancel');
+      toast.success('❌ Listing cancelled');
+      onSuccess();
+      onClose();
+    } catch (e) { toast.error(e.message); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 1000, padding: '20px',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'var(--surface)', border: '3px solid var(--border)',
+        boxShadow: '8px 8px 0 var(--border)', maxWidth: '400px', width: '100%',
+        borderRadius: '0',
+      }}>
+        {/* Header */}
+        <div style={{ padding: '18px 20px', borderBottom: '3px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0, fontFamily: 'Syne, sans-serif', fontSize: '16px', textTransform: 'uppercase' }}>
+            {isAlreadyListed ? 'Manage Resale Listing' : 'List for Resale'}
+          </h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', padding: '4px' }}>
+            <Icon.X />
+          </button>
+        </div>
+
+        <div style={{ padding: '24px' }}>
+          {/* Ticket info */}
+          <div style={{ padding: '12px 16px', border: '2px solid var(--border)', background: 'var(--bg)', marginBottom: '20px', fontSize: '13px', fontFamily: 'Space Mono, monospace' }}>
+            <div style={{ fontWeight: 'bold', color: 'var(--text)', marginBottom: '4px' }}>{ticket.event?.title}</div>
+            <div style={{ color: 'var(--muted)' }}>Token #{ticket.token_id} · Original price: ₹{ticket.salePrice?.toLocaleString('en-IN')}</div>
+            {isAlreadyListed && (
+              <div style={{ marginTop: '6px', color: 'var(--primary)', fontWeight: 'bold' }}>
+                Currently listed at: ₹{ticket.listPrice?.toLocaleString('en-IN')}
+              </div>
+            )}
+          </div>
+
+          {/* Price input */}
+          <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--muted)' }}>
+            {isAlreadyListed ? 'New List Price (₹)' : 'Resale Price (₹)'}
+          </label>
+          <input
+            type="number" min="1"
+            value={price}
+            onChange={e => setPrice(e.target.value)}
+            placeholder={`e.g. ${ticket.salePrice || 500}`}
+            style={{
+              width: '100%', padding: '12px', marginBottom: '16px',
+              border: '2px solid var(--border)', background: 'var(--input-bg)',
+              color: 'var(--text)', fontFamily: 'Space Mono, monospace',
+              fontSize: '18px', fontWeight: 'bold', boxSizing: 'border-box',
+            }}
+          />
+
+          <div style={{ fontSize: '12px', color: '#f59e0b', background: 'rgba(245,158,11,0.08)', border: '1px solid #f59e0b', padding: '10px 12px', marginBottom: '20px', fontFamily: 'Space Mono, monospace' }}>
+            ⚠ Anti-scalping: you'll receive payment only when another user buys.
+          </div>
+
+          {/* Action buttons */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {isAlreadyListed ? (
+              <>
+                <button onClick={handleUpdatePrice} disabled={loading} className="brutal-btn"
+                  style={{ width: '100%', padding: '13px', fontSize: '13px', opacity: loading ? 0.6 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}>
+                  {loading ? 'Updating…' : '💰 Update Price'}
+                </button>
+                <button onClick={handleCancel} disabled={loading}
+                  style={{ width: '100%', padding: '12px', fontSize: '13px', background: 'transparent', border: '2px solid #ef4444', color: '#ef4444', cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'Space Mono, monospace', fontWeight: 'bold', opacity: loading ? 0.6 : 1 }}>
+                  {loading ? '…' : '❌ Cancel Listing'}
+                </button>
+              </>
+            ) : (
+              <button onClick={handleList} disabled={loading} className="brutal-btn"
+                style={{ width: '100%', padding: '13px', fontSize: '13px', opacity: loading ? 0.6 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}>
+                {loading ? 'Listing…' : '🏷️ List for Resale'}
+              </button>
+            )}
+            <button onClick={onClose} style={{ width: '100%', padding: '12px', fontSize: '13px', background: 'transparent', border: '2px solid var(--border)', color: 'var(--muted)', cursor: 'pointer', fontFamily: 'Space Mono, monospace' }}>
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Ticket Card ────────────────────────────────────────────────────────────
+const TicketCard = ({ ticket, index, tab, token, onRefresh }) => {
+  const [resaleOpen, setResaleOpen] = useState(false);
+  const gradient = GRADIENT_COLORS[index % GRADIENT_COLORS.length];
+  const dateStr  = formatDate(ticket.event?.date);
+  const status   = ticket.used ? 'USED' : ticket.isListed ? 'LISTED' : 'ACTIVE';
+
+  const statusColors = {
+    ACTIVE: { bg: 'var(--primary)', color: '#000' },
+    LISTED: { bg: '#f59e0b', color: '#000' },
+    USED:   { bg: '#374151', color: '#9ca3af' },
+  };
+
+  return (
+    <>
+      <div className="brutal-card fade-in" style={{ display: 'flex', padding: 0, overflow: 'hidden' }}>
+
+        {/* Colour strip */}
+        <div style={{
+          width: '130px', flexShrink: 0,
+          background: gradient,
+          borderRight: '3px solid var(--border)',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          color: '#fff', padding: '20px', gap: '8px',
+        }}>
+          <Icon.Ticket size={28} />
+          <div style={{ fontSize: '9px', fontWeight: 'bold', letterSpacing: '2px', textTransform: 'uppercase', opacity: 0.85 }}>NFT PASS</div>
+          <div style={{ fontSize: '11px', fontWeight: 'bold', fontFamily: 'Space Mono, monospace' }}>#{ticket.token_id}</div>
+        </div>
+
+        {/* Details */}
+        <div style={{ padding: '20px 24px', flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h3 style={{ margin: '0 0 8px', fontSize: '20px', fontFamily: 'Syne, sans-serif', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {ticket.event?.title || 'Unknown Event'}
+            </h3>
+
+            <div style={{ display: 'flex', gap: '18px', fontSize: '13px', color: 'var(--muted)', marginBottom: '12px', flexWrap: 'wrap' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <Icon.Calendar /> {dateStr}
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <Icon.MapPin /> {ticket.event?.venue || 'TBA'}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '11px', padding: '4px 10px', background: 'var(--bg)', border: '2px solid var(--border)', color: 'var(--muted)', fontFamily: 'Space Mono, monospace', fontWeight: 'bold' }}>
+                TOKEN #{ticket.token_id}
+              </span>
+              <span style={{ fontSize: '11px', padding: '4px 10px', background: 'var(--bg)', border: '2px solid var(--border)', color: 'var(--muted)', fontFamily: 'Space Mono, monospace', fontWeight: 'bold' }}>
+                EVENT #{ticket.event_id}
+              </span>
+              <span style={{
+                fontSize: '11px', padding: '4px 10px',
+                background: statusColors[status].bg,
+                color: statusColors[status].color,
+                border: '2px solid var(--border)',
+                fontWeight: 'bold', textTransform: 'uppercase',
+              }}>
+                {status}
+              </span>
+              {ticket.isListed && (
+                <span style={{ fontSize: '11px', padding: '4px 10px', background: 'rgba(245,158,11,0.1)', border: '2px solid #f59e0b', color: '#f59e0b', fontFamily: 'Space Mono, monospace', fontWeight: 'bold' }}>
+                  <Icon.Tag /> ₹{ticket.listPrice?.toLocaleString('en-IN')}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Right col */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px', flexShrink: 0 }}>
+            <div style={{ fontSize: '22px', fontWeight: 'bold', color: 'var(--text)', fontFamily: 'Space Mono, monospace' }}>
+              ₹{Number(ticket.salePrice || ticket.event?.price || 0).toLocaleString('en-IN')}
+            </div>
+
+            {/* Action buttons */}
+            {tab === 'active' && !ticket.used && !ticket.isListed && (
+              <button className="brutal-btn" onClick={() => setResaleOpen(true)}
+                style={{ padding: '9px 16px', fontSize: '12px', background: 'var(--surface)', color: '#f59e0b', borderColor: '#f59e0b' }}>
+                🏷️ Resell
+              </button>
+            )}
+            {tab === 'resell' && (
+              <button className="brutal-btn" onClick={() => setResaleOpen(true)}
+                style={{ padding: '9px 16px', fontSize: '12px', background: 'var(--surface)', color: '#f59e0b', borderColor: '#f59e0b' }}>
+                ✏️ Edit Listing
+              </button>
+            )}
+            {tab === 'used' && (
+              <span style={{ fontSize: '12px', color: 'var(--muted)', fontFamily: 'Space Mono, monospace', padding: '9px 16px', border: '2px solid var(--border)' }}>
+                ✔ Entry Used
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <ResaleActionModal
+        isOpen={resaleOpen}
+        onClose={() => setResaleOpen(false)}
+        ticket={ticket}
+        token={token}
+        onSuccess={onRefresh}
+      />
+    </>
+  );
+};
+
+// ── Page ───────────────────────────────────────────────────────────────────
+export default function TicketsPage() {
+  const { token } = useAuth();
+  const [tickets, setTickets]     = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState('');
+  const [activeTab, setActiveTab] = useState('active');
+
+  const fetchTickets = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res  = await fetch(`${API_BASE}/tickets/my-tickets`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'Failed to load tickets');
+      setTickets(data.tickets || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
 
-  const filteredTickets = tickets.filter(t => t.status === activeFilter);
+  useEffect(() => { fetchTickets(); }, [fetchTickets]);
 
-  const FILTERS = ['Active', 'Resaled', 'Expired'];
+  // Classify tickets
+  const activeTickets = tickets.filter(t => !t.used && !t.isListed);
+  const resellTickets = tickets.filter(t => t.isListed);
+  const usedTickets   = tickets.filter(t => t.used);
+
+  const TABS = [
+    { key: 'active', label: 'Active',   count: activeTickets.length, color: 'var(--primary)' },
+    { key: 'resell', label: 'Resale',   count: resellTickets.length, color: '#f59e0b' },
+    { key: 'used',   label: 'Used',     count: usedTickets.length,   color: '#6b7280' },
+  ];
+
+  const currentTickets = activeTab === 'active' ? activeTickets
+    : activeTab === 'resell' ? resellTickets
+    : usedTickets;
 
   return (
     <div style={{ minHeight: 'calc(100vh - 60px)', background: 'var(--bg)', padding: '40px 20px' }}>
       <style>{`
         .fade-in { animation: fadeIn 0.2s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
-      
+
       <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-        
-        {/* Header section */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '30px', borderBottom: '3px solid var(--border)', paddingBottom: '20px' }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '28px', borderBottom: '3px solid var(--border)', paddingBottom: '18px' }}>
           <div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.5rem', color: 'var(--text)', margin: '0 0 10px 0', textTransform: 'uppercase' }}>My Tickets</h1>
-            <p style={{ color: 'var(--muted)', margin: 0, fontWeight: 'bold' }}>Manage your digital passes and NFT tickets</p>
+            <h1 style={{ fontFamily: 'Syne, sans-serif', fontSize: '2.2rem', color: 'var(--text)', margin: '0 0 6px', textTransform: 'uppercase' }}>
+              My Tickets
+            </h1>
+            <p style={{ color: 'var(--muted)', margin: 0, fontSize: '13px', fontFamily: 'Space Mono, monospace' }}>
+              {tickets.length} NFT ticket{tickets.length !== 1 ? 's' : ''} in your wallet
+            </p>
           </div>
-          <Link to="/" className="brutal-btn" style={{ textDecoration: 'none', padding: '12px 20px', fontSize: '14px' }}>Browse Events</Link>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={fetchTickets} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', background: 'var(--surface)', border: '2px solid var(--border)', color: 'var(--text)', cursor: 'pointer', fontFamily: 'Space Mono, monospace', fontSize: '12px', fontWeight: 'bold' }}>
+              <Icon.RefreshCw /> Refresh
+            </button>
+            <Link to="/" className="brutal-btn" style={{ textDecoration: 'none', padding: '10px 18px', fontSize: '13px' }}>
+              Browse Events
+            </Link>
+          </div>
         </div>
 
-        {/* Filters */}
-        <div style={{ display: 'flex', gap: '15px', marginBottom: '40px' }}>
-          {FILTERS.map(filter => {
-            const isActive = activeFilter === filter;
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: '0', marginBottom: '32px', border: '3px solid var(--border)', width: 'fit-content' }}>
+          {TABS.map((tab, i) => {
+            const isActive = activeTab === tab.key;
             return (
-              <button
-                key={filter}
-                onClick={() => setActiveFilter(filter)}
-                style={{
-                  padding: '12px 24px',
-                  background: isActive ? 'var(--primary)' : 'var(--surface)',
-                  color: isActive ? '#000' : 'var(--text)',
-                  border: '3px solid var(--border)',
-                  boxShadow: isActive ? '4px 4px 0 var(--border)' : 'none',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: 'bold',
-                  textTransform: 'uppercase',
-                  transition: 'all 0.15s'
-                }}
-                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.transform = 'translate(-2px, -2px)'; e.currentTarget.style.boxShadow = '4px 4px 0 var(--border)'; } }}
-                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = 'none'; } }}
-              >
-                {filter}
+              <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
+                padding: '12px 28px',
+                background: isActive ? tab.color : 'var(--surface)',
+                color: isActive ? '#000' : 'var(--muted)',
+                border: 'none',
+                borderLeft: i > 0 ? '3px solid var(--border)' : 'none',
+                cursor: 'pointer', fontSize: '13px', fontWeight: 'bold',
+                textTransform: 'uppercase', fontFamily: 'Space Mono, monospace',
+                letterSpacing: '0.5px',
+                transition: 'all 0.15s',
+                boxShadow: isActive ? 'inset 0 -3px 0 rgba(0,0,0,0.2)' : 'none',
+              }}>
+                {tab.label}
+                <span style={{
+                  marginLeft: '8px', fontSize: '11px', fontWeight: 'bold',
+                  background: isActive ? 'rgba(0,0,0,0.2)' : 'var(--bg)',
+                  color: isActive ? '#000' : 'var(--muted)',
+                  padding: '2px 7px', borderRadius: '10px',
+                  border: '1px solid var(--border)',
+                }}>
+                  {tab.count}
+                </span>
               </button>
             );
           })}
         </div>
 
-        {/* Ticket Grid */}
+        {/* Content */}
         {loading ? (
-          <div className="brutal-card fade-in" style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--muted)' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
-              <Icon.Loader />
-            </div>
-            <h3 style={{ marginTop: '1rem', marginBottom: '0.5rem', textTransform: 'uppercase', fontFamily: 'var(--font-display)' }}>Loading Tickets</h3>
-            <p>Fetching your tickets from blockchain...</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {[1, 2].map(i => (
+              <div key={i} className="brutal-card" style={{ height: '120px', opacity: 0.4, background: 'var(--surface)', animation: 'fadeIn 0.3s ease' }} />
+            ))}
           </div>
-        ) : filteredTickets.length === 0 ? (
+        ) : error ? (
+          <div className="brutal-card" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
+            <div style={{ fontSize: '2rem', marginBottom: '12px' }}>⚠</div>
+            <p style={{ color: '#ef4444', fontFamily: 'Space Mono, monospace', fontSize: '13px', marginBottom: '16px' }}>{error}</p>
+            <button onClick={fetchTickets} className="brutal-btn" style={{ padding: '10px 24px', fontSize: '13px' }}>Try Again</button>
+          </div>
+        ) : currentTickets.length === 0 ? (
           <div className="brutal-card fade-in" style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--muted)' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
-              <Icon.Ticket />
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', opacity: 0.4 }}>
+              <Icon.Ticket size={48} />
             </div>
-            <h3 style={{ marginTop: '1rem', marginBottom: '0.5rem', textTransform: 'uppercase', fontFamily: 'var(--font-display)' }}>No {activeFilter} Tickets</h3>
-            <p>You don't have any tickets in this category right now.</p>
+            <h3 style={{ marginTop: 0, marginBottom: '8px', textTransform: 'uppercase', fontFamily: 'Syne, sans-serif', fontSize: '18px' }}>
+              No {TABS.find(t => t.key === activeTab)?.label} Tickets
+            </h3>
+            <p style={{ fontSize: '13px', fontFamily: 'Space Mono, monospace', margin: '0 0 20px' }}>
+              {activeTab === 'active' && "You don't have any active tickets. Book an event!"}
+              {activeTab === 'resell' && "You haven't listed any tickets for resale."}
+              {activeTab === 'used' && "No used tickets yet."}
+            </p>
+            {activeTab === 'active' && (
+              <Link to="/" className="brutal-btn" style={{ textDecoration: 'none', padding: '12px 24px', fontSize: '13px' }}>
+                Browse Events →
+              </Link>
+            )}
           </div>
         ) : (
-          <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            {filteredTickets.map(ticket => (
-              <div key={ticket.id} className="brutal-card" style={{ display: 'flex', padding: 0, overflow: 'hidden' }}>
-                
-                {/* Visual Stub */}
-                <div style={{ width: '150px', background: ticket.image, borderRight: '3px solid var(--border)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: '#fff', padding: '20px' }}>
-                  <Icon.Ticket />
-                  <div style={{ marginTop: '10px', fontSize: '10px', fontWeight: 'bold', letterSpacing: '2px', textTransform: 'uppercase' }}>NFT PASS</div>
-                </div>
-
-                {/* Details */}
-                <div style={{ padding: '24px', flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <h3 style={{ margin: '0 0 10px 0', color: 'var(--text)', fontSize: '22px', fontFamily: 'var(--font-display)', textTransform: 'uppercase' }}>{ticket.title}</h3>
-                    
-                    <div style={{ fontSize: '13px', color: 'var(--text)', marginBottom: '15px', display: 'flex', gap: '20px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
-                        <Icon.Calendar /> {ticket.date}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
-                        <Icon.MapPin /> {ticket.venue}
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '15px' }}>
-                      <span style={{ fontSize: '11px', padding: '6px 10px', background: 'var(--bg)', border: '2px solid var(--border)', color: 'var(--muted)', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>ID: {ticket.id}</span>
-                      <span style={{ fontSize: '11px', padding: '6px 10px', background: 'var(--bg)', border: '2px solid var(--border)', color: 'var(--muted)', fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>QTY: {ticket.quantity}</span>
-                      <span style={{ fontSize: '11px', padding: '6px 10px', background: ticket.status === 'Active' ? 'var(--primary)' : 'var(--bg)', border: `2px solid var(--border)`, color: ticket.status === 'Active' ? '#000' : 'var(--muted)', fontWeight: 'bold', textTransform: 'uppercase' }}>{ticket.status}</span>
-                    </div>
-                  </div>
-
-                  <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'space-between', height: '100%' }}>
-                    <div style={{ color: 'var(--text)', fontWeight: 'bold', fontSize: '24px' }}>{ticket.price}</div>
-                    
-                    {activeFilter === 'Active' ? (
-                      <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                        <button 
-                          className="brutal-btn" 
-                          style={{ background: 'var(--surface)', color: '#f59e0b', borderColor: '#f59e0b', padding: '10px 16px', fontSize: '12px' }}
-                          onClick={() => setSelectedResaleTicket(ticket)}
-                        >
-                          Resell
-                        </button>
-                        <button className="brutal-btn" style={{ background: 'var(--surface)', color: 'var(--text)', padding: '10px 16px', fontSize: '12px' }}>Transfer</button>
-                        <button 
-                          className="brutal-btn" 
-                          style={{ padding: '10px 16px', fontSize: '12px' }}
-                          onClick={() => setSelectedViewTicket(ticket)}
-                        >
-                          View Ticket
-                        </button>
-                      </div>
-                    ) : (
-                      <button 
-                        className="brutal-btn" 
-                        style={{ marginTop: '15px', background: 'var(--surface)', color: 'var(--text)', padding: '10px 16px', fontSize: '12px' }}
-                        onClick={() => setSelectedViewTicket(ticket)}
-                      >
-                        View Details
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {currentTickets.map((ticket, i) => (
+              <TicketCard
+                key={ticket.token_id}
+                ticket={ticket}
+                index={i}
+                tab={activeTab}
+                token={token}
+                onRefresh={fetchTickets}
+              />
             ))}
           </div>
         )}
-      </div>
 
-      <ResaleModal 
-        isOpen={!!selectedResaleTicket}
-        onClose={() => setSelectedResaleTicket(null)}
-        ticket={selectedResaleTicket || {}}
-        token={token}
-        onResaleSuccess={() => {
-          toast.success('Ticket listed for resale!', {
-            style: {
-              border: '2px solid #f59e0b',
-              background: '#000',
-              color: '#f59e0b',
-            }
-          });
-          setSelectedResaleTicket(null);
-          window.location.reload();
-        }}
-      />
-      <TicketDetailModal 
-        isOpen={!!selectedViewTicket}
-        onClose={() => setSelectedViewTicket(null)}
-        ticket={selectedViewTicket}
-      />
+        {/* Resale tab legend */}
+        {activeTab === 'resell' && resellTickets.length > 0 && (
+          <div style={{ marginTop: '24px', padding: '14px 18px', border: '2px dashed var(--border)', background: 'var(--surface)', fontSize: '12px', color: 'var(--muted)', fontFamily: 'Space Mono, monospace', lineHeight: 1.8 }}>
+            <strong style={{ color: 'var(--text)' }}>Resale actions available:</strong><br />
+            • <strong style={{ color: '#f59e0b' }}>Edit Listing</strong> — update the list price<br />
+            • <strong style={{ color: '#ef4444' }}>Cancel Listing</strong> — remove from marketplace
+          </div>
+        )}
+
+      </div>
     </div>
   );
 }
