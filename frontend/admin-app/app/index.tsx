@@ -14,7 +14,7 @@ import {
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAdminAuth } from '@/context/AdminAuthContext';
 
-const API_BASE = 'http://192.168.29.141:5000/api';
+const API_BASE = 'https://blockmyshow.onrender.com/api';
 
 // ── Design tokens ─────────────────────────────────────────────────────────
 const C = {
